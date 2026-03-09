@@ -122,8 +122,8 @@ cat /tmp/daily_papers_top30.json | python3 ../daily-papers/enrich_papers.py /tmp
 
 ## 注意事项
 
-- Phase 1+2 使用 `fetch_and_score.py` 脚本，**不启动 Task Agent**，零 token 消耗
-- Phase 3 使用 `enrich_papers.py` 脚本，同样不启动 Task Agent
+- Phase 1+2 使用 `fetch_and_score.py` 脚本，由当前 Codex 会话直接执行，零 token 消耗
+- Phase 3 使用 `enrich_papers.py` 脚本，同样由当前 Codex 会话直接执行
 - 如果脚本执行失败，检查 stderr 输出诊断问题
 - 如果 arXiv API 抓取失败，脚本自动 fallback 到仅 HuggingFace 源
 - 如果总论文数不足 20 篇，有多少处理多少

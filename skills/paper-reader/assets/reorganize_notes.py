@@ -171,7 +171,7 @@ def strip_inline_comment(raw_value: str) -> str:
 def determine_category(tags: List[str], title: str = "") -> str:
     """根据 tags 判断论文应该属于哪个分类"""
     if not tags:
-        return "_待整理"
+        return "_inbox"
 
     # 确保所有 tags 都是字符串
     tags_lower = [str(t).lower() for t in tags]
@@ -203,7 +203,7 @@ def determine_category(tags: List[str], title: str = "") -> str:
     best_category = max(scores, key=scores.get)
     if scores[best_category] > 0:
         return best_category
-    return "_待整理"
+    return "_inbox"
 
 
 def get_all_notes() -> List[Path]:

@@ -21,9 +21,9 @@ description: |
    - `今日论文推荐`、`每日推荐`、`今日论文` -> 当天
    - `过去3天论文推荐`、`最近3天论文` -> 3 天
    - `过去一周论文推荐`、`看看这周有啥论文` -> 7 天
-2. 自动调用 `/daily-papers-fetch`。
-3. 第 1 步完成后，自动调用 `/daily-papers-review`。
-4. 第 2 步完成后，自动调用 `/daily-papers-notes`。
+2. 自动调用 `daily-papers-fetch` skill。
+3. 第 1 步完成后，自动调用 `daily-papers-review` skill。
+4. 第 2 步完成后，自动调用 `daily-papers-notes` skill。
 5. 全部完成后，用一句话告诉用户：
    - 推荐文件已生成
    - 重点论文笔记已生成多少篇
