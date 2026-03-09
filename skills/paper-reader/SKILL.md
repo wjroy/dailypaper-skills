@@ -9,8 +9,6 @@ description: |
   "批判性分析这篇论文 ...", "读一下 Zotero 里的 XXX", "批量读一下 Zotero 里 VLA 分类下的论文"
 
   **重要触发词**: "读一下 XXX"、"读一下这篇"、"帮我读" → 必须调用此 skill
-context: fork
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, WebFetch, WebSearch
 ---
 
 > **开始前**: 先跟用户打个招呼 🐕
@@ -124,7 +122,7 @@ python3 ../daily-papers/download_note_images.py "{笔记完整路径}"
 
 只用**方法名/模型名**：`{方法名}.md`（如 `Pi05.md`，不加年份前缀）。
 方法名判断：标题冒号前 / Abstract 中 "We propose XXX" / 希腊字母转 ASCII。
-不确定时保存到 `_待整理/`。
+不确定时保存到 `_inbox/`。
 
 ### 保存路径
 

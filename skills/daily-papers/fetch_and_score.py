@@ -2,7 +2,7 @@
 """
 fetch_and_score.py — Phase 1+2: Fetch, score, merge, dedup, select top 30.
 
-Replaces the two LLM Task Agents with pure Python. Zero token cost.
+Replaces the LLM orchestration step with pure Python. Zero token cost.
 
 Usage:
     python3 fetch_and_score.py > /tmp/daily_papers_top30.json

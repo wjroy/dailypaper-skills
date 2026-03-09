@@ -4,7 +4,7 @@ Paper Reading Daemon - 后台论文阅读守护进程
 
 功能：
 1. 从 Zotero 获取指定分类的论文列表（递归子分类）
-2. 调用 Claude Code 逐篇处理
+2. 调用 Codex 逐篇处理
 3. 遇到 rate limit 时自动等待并重试
 4. 支持断点续传
 
@@ -21,6 +21,7 @@ import os
 import sys
 import json
 import sqlite3
+import shlex
 import subprocess
 import time
 import argparse
@@ -43,7 +44,11 @@ ZOTERO_STORAGE = str(zotero_storage_dir())
 OBSIDIAN_VAULT = str(obsidian_vault_path())
 PAPER_NOTES_ROOT = str(paper_notes_dir())
 CONCEPTS_ROOT = str(concepts_dir())
-_DAEMON_STATE_DIR = os.path.expanduser(os.environ.get("PAPER_DAEMON_STATE_DIR", "~/.claude"))
+_DAEMON_STATE_DIR = os.path.expanduser(os.environ.get("PAPER_DAEMON_STATE_DIR", "~/.codex"))
+_CODEX_BIN = os.environ.get("PAPER_DAEMON_CODEX_BIN", "codex")
+_CODEX_WORKDIR = os.environ.get("PAPER_DAEMON_CODEX_WORKDIR", OBSIDIAN_VAULT)
+_CODEX_MODEL = os.environ.get("PAPER_DAEMON_CODEX_MODEL", "").strip()
+_CODEX_EXTRA_ARGS = os.environ.get("PAPER_DAEMON_CODEX_ARGS", "")
 PROGRESS_FILE = os.path.join(_DAEMON_STATE_DIR, "paper_daemon_progress.json")
 LOG_FILE = os.path.join(_DAEMON_STATE_DIR, "paper_daemon.log")
 PID_FILE = os.path.join(_DAEMON_STATE_DIR, "paper_daemon.pid")
@@ -323,7 +328,7 @@ def get_existing_notes() -> dict[str, str]:
         for md_file in notes_dir.rglob("*.md"):
             name = md_file.stem
             relative_parts = md_file.relative_to(notes_dir).parts
-            # 跳过 _待整理, _概念 等特殊目录和目录页
+            # 跳过 _inbox, _概念 等特殊目录和目录页
             if any(part.startswith("_") for part in relative_parts):
                 continue
             if md_file.parent.name == name:
@@ -400,9 +405,9 @@ def save_progress(progress: dict):
         json.dump(progress, f, indent=2, ensure_ascii=False)
 
 
-def call_claude_code(paper_source: dict, collection_path: str, item_id: int) -> tuple[bool, str]:
+def call_codex(paper_source: dict, collection_path: str, item_id: int) -> tuple[bool, str]:
     """
-    调用 Claude Code 处理论文
+    调用 Codex 处理论文
 
     paper_source 可以包含:
     - pdf_path: 本地 PDF 路径
@@ -464,7 +469,7 @@ def call_claude_code(paper_source: dict, collection_path: str, item_id: int) -> 
 优先使用 HTML 版本，因为可以直接获取在线图片链接！
 """
 
-    prompt = f"""请使用 paper-reader skill 读取并分析这篇论文，生成完整的结构化笔记。
+    prompt = f"""请使用 `paper-reader` skill 读取并分析这篇论文，生成完整的结构化笔记。
 
 {source_info}
 Zotero 分类路径: {collection_path}
@@ -565,13 +570,27 @@ $$公式$$
 
 根据你对论文的理解，保存到对应的 Obsidian 目录：
 - 基本结构：{notes_root}/对应分类路径/
-- 不确定时：{notes_root}/_待整理/
+- 不确定时：{notes_root}/_inbox/
 
 请直接开始处理，不需要确认。提取所有公式、图片和表格。"""
 
     try:
+        cmd = [
+            _CODEX_BIN,
+            'exec',
+            '--full-auto',
+            '--skip-git-repo-check',
+            '-C',
+            _CODEX_WORKDIR,
+        ]
+        if _CODEX_MODEL:
+            cmd.extend(['--model', _CODEX_MODEL])
+        if _CODEX_EXTRA_ARGS:
+            cmd.extend(shlex.split(_CODEX_EXTRA_ARGS))
+        cmd.append(prompt)
+
         result = subprocess.run(
-            ['claude', '-p', prompt, '--model', 'opus', '--permission-mode', 'acceptEdits', '--dangerously-skip-permissions'],
+            cmd,
             capture_output=True,
             text=True,
             timeout=900  # 15分钟超时（因为要提取图片）
@@ -672,7 +691,7 @@ def process_collection(collection_name: str, resume: bool = True):
         progress['current'] = {'item_id': item_id, 'title': title}
         save_progress(progress)
 
-        success, error = call_claude_code(paper_source, collection_path, item_id)
+        success, error = call_codex(paper_source, collection_path, item_id)
 
         if success:
             logger.info(f"✓ 完成: {title[:50]}")
@@ -774,7 +793,7 @@ def main():
 
     # 检查是否已有进程在运行
     if not acquire_lock():
-        logger.error("另一个 paper_daemon 进程正在运行！请先停止它或删除 ~/.claude/paper_daemon.pid")
+        logger.error("另一个 paper_daemon 进程正在运行！请先停止它或删除 ~/.codex/paper_daemon.pid")
         return
 
     try:

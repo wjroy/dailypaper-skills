@@ -1,8 +1,8 @@
 # dailypaper-skills
 
-我平时读论文用的一套 Claude Code skills。跟 Claude 说句话就能筛论文、读论文、写笔记，最后自动存进 Obsidian。
+我平时读论文用的一套 Codex skills。直接跟 Codex 说一句话，就能筛论文、读论文、写笔记，最后自动存进 Obsidian。
 
-> 📺 [用 Claude Code 打造我的论文流水线](http://xhslink.com/o/1dhQCn40EWY) — 我随手拍的一段视频展示效果
+> 📺 [论文流水线效果演示（旧视频）](http://xhslink.com/o/1dhQCn40EWY) — 展示的是同一套工作流的早期版本
 
 ## 🦴 这套东西会帮我做什么
 
@@ -17,8 +17,8 @@
 ```text
 ObsidianVault/
 ├── DailyPapers/YYYY-MM-DD-论文推荐.md
-├── 论文笔记/.../*.md
-└── 论文笔记/_概念/.../*.md
+├── PaperNotes/.../*.md
+└── PaperNotes/_concepts/.../*.md
 ```
 
 可直接看模板：
@@ -60,7 +60,7 @@ ObsidianVault/
 
 前置环境：
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+- Codex CLI
 - [Obsidian](https://obsidian.md/)
 - [Python 3.8+](https://www.python.org/)
 - [`poppler-utils`](https://poppler.freedesktop.org/)（`apt install poppler-utils` / `brew install poppler`）
@@ -68,24 +68,24 @@ ObsidianVault/
 
 建议给 Obsidian 库加上 git 版本管理。笔记多了以后有个版本历史会安心很多，也方便多设备同步。
 
-如果你是在自己的本地机器上日常使用，通常直接用 `claude --dangerously-skip-permissions` 会省很多权限确认；前提是你清楚这会跳过权限检查，所以更适合个人环境，不建议在不熟悉的机器上直接这么跑。
+如果你是在自己的本地机器上日常使用，通常直接用 `codex --full-auto` 会顺手很多；如果你明确已经在外部沙箱里，也可以用 `codex --dangerously-bypass-approvals-and-sandbox`，但风险更高，不建议在不熟悉的机器上直接这么跑。
 
 在仓库根目录运行：
 
 ```bash
-mkdir -p ~/.claude/skills
-cp -r ./skills/* ~/.claude/skills/
+mkdir -p ~/.codex/skills
+cp -r ./skills/* ~/.codex/skills/
 
 # 改成你自己的 Obsidian 库路径，要跟配置文件里的 paths.obsidian_vault 一致
 VAULT=~/ObsidianVault
 mkdir -p "$VAULT/DailyPapers" \
-  "$VAULT/论文笔记/_概念/0-待分类" \
-  "$VAULT/论文笔记/_待整理"
+  "$VAULT/PaperNotes/_concepts/0-uncategorized" \
+  "$VAULT/PaperNotes/_inbox"
 ```
 
 ## ⚙️ 配置
 
-安装完之后需要改一下配置。配置文件是 `~/.claude/skills/_shared/user-config.json`，可以自己改，也可以直接告诉 Claude 你的需求让它帮你改。
+安装完之后需要改一下配置。配置文件是 `~/.codex/skills/_shared/user-config.json`，可以自己改，也可以直接让 Codex 按你的需求帮你改。
 
 里面主要改这几项：
 
@@ -115,7 +115,7 @@ mkdir -p "$VAULT/DailyPapers" \
 **每日推荐**拆成三步流水线，避免单次上下文太长：
 
 1. **抓取**：Python 脚本并发请求 HuggingFace Daily / Trending + arXiv API，按你配的关键词打分、去重，输出 top 30 候选到 `/tmp`。然后异步抓 arXiv 页面补全作者、机构、图片等元数据。
-2. **点评**：Claude 读候选列表，按 必读 / 值得看 / 可跳过 分流，写锐评，保存到 Obsidian 的 `DailyPapers/` 目录，同时更新 `.history.json` 做跨天去重。
+2. **点评**：Codex 读候选列表，按 必读 / 值得看 / 可跳过 分流，写锐评，保存到 Obsidian 的 `DailyPapers/` 目录，同时更新 `.history.json` 做跨天去重。
 3. **笔记**：对"必读"论文逐篇调 paper-reader 生成完整笔记（公式、图表、关键方法），顺便补概念库，最后回填链接、刷新目录页。
 
 **读单篇**走 paper-reader：支持 arXiv 链接、本地 PDF、Zotero 搜索。会从 arXiv HTML / 项目主页 / PDF 多路取图，按模板生成结构化笔记，自动归类到 Obsidian 对应目录。
@@ -148,7 +148,7 @@ mkdir -p "$VAULT/DailyPapers" \
 跑一下论文笔记
 ```
 
-如果你想做本地定时任务（比如每天早上6点自动运行），可以直接让 Claude 按你的系统环境帮你配置。
+如果你想做本地定时任务（比如每天早上 6 点自动运行），可以直接让 Codex 按你的系统环境帮你配置。
 
 ## 🐶 FAQ
 

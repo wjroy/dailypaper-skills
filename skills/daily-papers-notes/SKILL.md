@@ -60,7 +60,7 @@ description: |
 - 技术概念名（如 System Level Synthesis, Consistency Model）
 
 **1c: 创建缺失的概念笔记（自动归类）**
-检查 `{CONCEPTS_PATH}/` 下是否已存在（搜索所有子目录）。对于缺失的概念，**根据概念类型自动归类到对应子目录**，不要全扔 `0-待分类/`。
+检查 `{CONCEPTS_PATH}/` 下是否已存在（搜索所有子目录）。对于缺失的概念，**根据概念类型自动归类到对应子目录**，不要全扔 `0-uncategorized/`。
 
 分类规则见 `../paper-reader/references/concept-categories.md`
 
@@ -75,7 +75,7 @@ description: |
    - 对已有 `📒 **笔记**` 标记的论文，用 Glob 找到对应笔记文件，检查行数
    - **行数 < 100 的视为骨架笔记，必须重新生成**（删除旧文件，重新调用 paper-reader）
    - 行数 >= 100 且包含 `## 关键公式` 和 `## 关键图表` 的才算合格，可以跳过
-3. 对每篇需要生成/重新生成的论文，使用 Task agent 调用 `/paper-reader` skill（传入 arXiv 链接）
+3. 对每篇需要生成/重新生成的论文，调用 `paper-reader` skill（传入 arXiv 链接）
 4. 笔记生成后，paper-reader 会自动补充概念库，无需重复
 
 > **铁律**：不论论文数量多少，"必读"的论文**全部**生成笔记，一篇不能少。
@@ -84,9 +84,9 @@ description: |
 
 #### ⚠️ 笔记质量硬性要求
 
-**绝对禁止自己手写简化版笔记。每篇论文必须通过 Task agent 调用 `/paper-reader` skill 生成。**
+**绝对禁止自己手写简化版笔记。每篇论文必须通过 `paper-reader` skill 生成。**
 不要因为"怕 context overflow"或"论文太多"就自己写个 70 行的骨架糊弄过去。
-paper-reader 在独立的 Task agent 中运行，不会占用主 agent 的 context。
+如果当前会话上下文接近上限，可以开启新的 Codex 会话继续剩余论文；但不能跳过任何一篇必读论文。
 
 笔记质量由 paper-reader skill 自身保证（模板、公式、图片、概念链接等规则均在 paper-reader 中定义）。
 
@@ -165,7 +165,7 @@ cd {VAULT_PATH} && git add -A && git commit -m "daily papers: notes YYYY-MM-DD"
 ## 注意事项
 
 - 如果前置文件不存在，必须先运行前面的步骤
-- `/paper-reader` skill 会自动处理概念库补充，不要重复创建
+- `paper-reader` skill 会自动处理概念库补充，不要重复创建
 - 仅为"必读"论文生成笔记，"值得看"不生成，耗时正常，**不是跳过的理由**
 - 默认自动刷新目录页，但默认不做 git commit / push
 - **绝对禁止**以下偷懒行为：
