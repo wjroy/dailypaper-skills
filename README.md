@@ -114,17 +114,31 @@ mkdir -p "$VAULT/DailyPapers" \
 
 也就是默认会自动刷新目录页，但不会动你的 git。如果你的 Obsidian 库已经用 git 管理，希望跑完流程后自动提交，把 `git_commit` 打开就行。
 
-## 🐾 大概怎么跑的
+## 🆕 v2 双通道
 
-**每日推荐**拆成三步流水线，避免单次上下文太长：
+当前主线升级为双通道论文发现：
 
-1. **抓取**：Python 脚本并发请求 HuggingFace Daily / Trending + arXiv API，按你配的关键词打分、去重，输出 top 30 候选到 `/tmp`。然后异步抓 arXiv 页面补全作者、机构、图片等元数据。
-2. **点评**：Claude 读候选列表，按 必读 / 值得看 / 可跳过 分流，写锐评，保存到 Obsidian 的 `DailyPapers/` 目录，同时更新 `.history.json` 做跨天去重。
-3. **笔记**：对"必读"论文逐篇调 paper-reader 生成完整笔记（公式、图表、关键方法），顺便补概念库，最后回填链接、刷新目录页。
+1. **Published 通道**：`paper-fetcher` 多源 metadata 召回（默认 200）-> metadata-first 评分 -> top50 lite -> top20 PDF 候选 -> PDF enrich -> rich review。
+2. **Preprint 通道**：`arXiv / bioRxiv / adaptive` 抓取 -> enrich -> rich review（默认 top20）。
+3. **汇合层**：两个 rich reviewed pool 合并成 `/tmp/daily_review_merged.json`，再给 notes / reader / MOC 使用。
 
-**读单篇**走 paper-reader：支持 arXiv 链接、本地 PDF、Zotero 搜索。会从 arXiv HTML / 项目主页 / PDF 多路取图，按模板生成结构化笔记，自动归类到 Obsidian 对应目录。
+关键中间文件：
 
-**目录页**由 `generate-mocs` 维护：递归扫描论文笔记和概念库目录，自动生成带 wikilink 的索引页。
+```text
+/tmp/published_raw_200.json
+/tmp/published_lite_50.json
+/tmp/published_pdf_candidates_20.json
+/tmp/published_enriched_20.json
+/tmp/published_review_rich_20.json
+
+/tmp/preprint_raw.json
+/tmp/preprint_enriched.json
+/tmp/preprint_review_rich_20.json
+
+/tmp/daily_review_merged.json
+```
+
+**读单篇**仍走 paper-reader：支持 arXiv、本地 PDF、Zotero。
 
 更多实现细节见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -136,11 +150,33 @@ mkdir -p "$VAULT/DailyPapers" \
 - `paper-reader`：读单篇论文
 - `generate-mocs`：手动补刷目录页
 
-另外还有 3 个内部 skill，主要给调试和重跑单步用：
+另外还有一组内部 skill，主要给调试和重跑单步用：
 
 - `daily-papers-fetch`
 - `daily-papers-review`
 - `daily-papers-notes`
+- `published-review-lite`
+- `review-rich`
+
+其中：
+
+- `daily-papers-fetch` / `daily-papers-review` 是旧版单通道组件，当前主要用于兼容和调试。
+- `daily-papers-notes` 仍保留，但默认消费 merged rich pool（`/tmp/daily_review_merged.json`），且默认只为“必读”生成完整笔记。
+
+## 🧪 最小可运行 Demo
+
+```bash
+python skills/daily-papers/orchestration/run_published_channel.py
+python skills/daily-papers/orchestration/run_preprint_channel.py
+python skills/daily-papers/orchestration/run_published_rich_channel.py
+python skills/daily-papers/merge/merge_reviewed_papers.py
+```
+
+一键串行（实验态）：
+
+```bash
+python skills/daily-papers/orchestration/run_daily_pipeline.py
+```
 
 ## 🎾 进阶用法
 

@@ -7,6 +7,141 @@
     "zotero_db": "~/Zotero/zotero.sqlite",
     "zotero_storage": "~/Zotero/storage"
   },
+  "active_domain": "intelligent_construction",
+  "published_channel": {
+    "enabled": true,
+    "backend": "paper_fetcher",
+    "recall_n": 200,
+    "lite_n": 50,
+    "pdf_n": 50,
+    "rich_n": 20,
+    "providers": [
+      "semantic_scholar",
+      "openalex",
+      "crossref",
+      "pubmed",
+      "europe_pmc",
+      "unpaywall"
+    ],
+    "year_range": "",
+    "journal_article_only": false,
+    "has_abstract": true
+  },
+  "preprint_channel": {
+    "enabled": true,
+    "source_mode": "adaptive",
+    "default_source": "arxiv",
+    "rich_n": 20,
+    "sources": {
+      "arxiv": {
+        "enabled": true,
+        "categories": ["cs.RO", "cs.CV", "cs.AI", "cs.LG"],
+        "max_results": 200,
+        "sort_by": "submittedDate"
+      },
+      "biorxiv": {
+        "enabled": true,
+        "max_results": 200,
+        "window_days": 30,
+        "server": "biorxiv"
+      }
+    }
+  },
+  "domain_profiles": {
+    "intelligent_construction": {
+      "queries": [
+        "intelligent construction",
+        "construction robotics",
+        "geotechnical monitoring",
+        "foundation pit",
+        "embodied ai for civil engineering"
+      ],
+      "positive_keywords": [
+        "construction",
+        "geotechnical",
+        "foundation pit",
+        "embodied ai",
+        "robotics",
+        "autonomous excavation",
+        "digital twin"
+      ],
+      "negative_keywords": [
+        "medical imaging",
+        "weather forecast",
+        "protein design",
+        "drug discovery",
+        "speech synthesis",
+        "gui agent",
+        "text-to-sql"
+      ],
+      "boost_keywords": [
+        "field deployment",
+        "real-world",
+        "earthwork",
+        "tunnel",
+        "safety monitoring",
+        "sim-to-real"
+      ],
+      "source_preferences": {
+        "semantic_scholar": 1.0,
+        "openalex": 1.0,
+        "crossref": 1.0,
+        "pubmed": 0.2,
+        "europe_pmc": 0.2,
+        "arxiv": 1.0,
+        "biorxiv": 0.1
+      },
+      "preprint_source": "arxiv"
+    },
+    "biology": {
+      "queries": [
+        "immunology",
+        "molecular biology",
+        "bioinformatics",
+        "single-cell sequencing",
+        "protein interaction"
+      ],
+      "positive_keywords": [
+        "immunology",
+        "molecular biology",
+        "bioinformatics",
+        "single-cell",
+        "transcriptomics",
+        "proteomics",
+        "gene regulation"
+      ],
+      "negative_keywords": [
+        "autonomous driving",
+        "robot manipulation",
+        "construction machinery",
+        "computer graphics",
+        "game engine"
+      ],
+      "boost_keywords": [
+        "in vivo",
+        "clinical cohort",
+        "wet-lab validation",
+        "benchmark dataset",
+        "causal mechanism"
+      ],
+      "source_preferences": {
+        "semantic_scholar": 1.0,
+        "openalex": 1.0,
+        "crossref": 0.9,
+        "pubmed": 1.2,
+        "europe_pmc": 1.2,
+        "arxiv": 0.4,
+        "biorxiv": 1.3
+      },
+      "preprint_source": "biorxiv"
+    }
+  },
+  "automation": {
+    "auto_refresh_indexes": true,
+    "git_commit": false,
+    "git_push": false,
+    "save_phase_outputs": true
+  },
   "daily_papers": {
     "keywords": [
       "world model",
@@ -73,10 +208,5 @@
     "arxiv_categories": ["cs.RO", "cs.CV", "cs.AI", "cs.LG"],
     "min_score": 2,
     "top_n": 30
-  },
-  "automation": {
-    "auto_refresh_indexes": true,
-    "git_commit": false,
-    "git_push": false
   }
 }

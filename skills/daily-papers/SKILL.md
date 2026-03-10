@@ -1,10 +1,10 @@
 ---
 name: daily-papers
 description: |
-  每日论文推荐的一句话总入口。用户说“今日论文推荐”“过去3天论文推荐”“过去一周论文推荐”
+  每日论文推荐的一句话总入口（v2 双通道）。用户说“今日论文推荐”“过去3天论文推荐”“过去一周论文推荐”
   “最近3天论文”“看看这周有啥论文”时使用。
 
-  内部会自动串联论文抓取、推荐生成、重点论文笔记三步，无需用户手动拆开。
+  内部会自动串联 Published + Preprint 双通道与 merge，再进入 notes。
 ---
 
 # 每日论文推荐
@@ -21,10 +21,12 @@ description: |
    - `今日论文推荐`、`每日推荐`、`今日论文` -> 当天
    - `过去3天论文推荐`、`最近3天论文` -> 3 天
    - `过去一周论文推荐`、`看看这周有啥论文` -> 7 天
-2. 自动调用 `/daily-papers-fetch`。
-3. 第 1 步完成后，自动调用 `/daily-papers-review`。
-4. 第 2 步完成后，自动调用 `/daily-papers-notes`。
-5. 全部完成后，用一句话告诉用户：
+2. 优先调用 `skills/daily-papers/orchestration/run_published_channel.py`。
+3. 调用 `skills/daily-papers/orchestration/run_preprint_channel.py`。
+4. 调用 `skills/daily-papers/orchestration/run_published_rich_channel.py`。
+5. 调用 `skills/daily-papers/merge/merge_reviewed_papers.py`。
+6. 最后再调用 `/daily-papers-notes`（默认只处理“必读”）。
+7. 全部完成后，用一句话告诉用户：
    - 推荐文件已生成
    - 重点论文笔记已生成多少篇
    - 目录页是否已自动刷新
@@ -32,7 +34,7 @@ description: |
 ## 重要约束
 
 - 不要先要求用户手动跑 `跑一下论文抓取 / 点评 / 笔记`。
-- 这 3 句是内部流水线和调试入口，不是首页主交互。
+- 这些命令是内部流水线和调试入口，不是首页主交互。
 - 如果用户明确只想跑其中一步，再交给对应 skill。
 
 ## 自动化

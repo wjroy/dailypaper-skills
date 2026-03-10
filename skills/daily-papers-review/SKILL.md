@@ -4,6 +4,10 @@ description: |
   论文点评（3 步流水线的第 2 步）。读取富化后的论文数据，扫描笔记库，生成有态度的推荐点评，
   保存推荐文件到 Obsidian，更新 history；git 自动化默认关闭。
 
+  注：这是旧版单通道点评 skill。v2 主线已拆分为：
+  - `published-review-lite`（metadata-first）
+  - `review-rich`（enriched/PDF-aware）
+
   触发词："论文点评"、"跑一下论文点评"
 ---
 

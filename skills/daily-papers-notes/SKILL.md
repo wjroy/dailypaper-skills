@@ -4,6 +4,8 @@ description: |
   论文笔记生成（3 步流水线的第 3 步）。补充概念库，为推荐论文生成完整笔记，
   链接回填到推荐文件；目录页默认自动刷新，git 自动化默认关闭。
 
+  v2 默认输入为 merge 后结果：`/tmp/daily_review_merged.json`，且默认只为“必读”生成完整笔记。
+
   触发词："批量笔记"、"跑一下论文笔记"
 ---
 
@@ -26,7 +28,7 @@ description: |
 - `AUTO_REFRESH_INDEXES`
 - `GIT_COMMIT_ENABLED`
 - `GIT_PUSH_ENABLED`
-- `ENRICHED_INPUT = /tmp/daily_papers_enriched.json`
+- `MERGED_INPUT = /tmp/daily_review_merged.json`
 
 其中：
 
@@ -39,9 +41,9 @@ description: |
 
 ## 前置检查
 
-1. 检查 `/tmp/daily_papers_enriched.json` 是否存在
-2. 检查今天的推荐文件 `{DAILY_PAPERS_PATH}/YYYY-MM-DD-论文推荐.md` 是否存在
-3. 如果任一不存在，告知用户需要先运行前置步骤，然后停止
+1. 检查 `/tmp/daily_review_merged.json` 是否存在
+2. 检查今天的推荐文件 `{DAILY_PAPERS_PATH}/YYYY-MM-DD-论文推荐.md` 是否存在（用于回填）
+3. 如果任一不存在，告知用户需要先运行 merge 和 review 阶段，然后停止
 
 ## 工作流程
 
@@ -49,7 +51,7 @@ description: |
 
 **1a: 提取概念列表**
 1. 扫描今天的推荐文件，提取所有 `[[...]]` 链接
-2. 额外从 `/tmp/daily_papers_enriched.json` 的 `method_names` 列表中提取所有方法名
+2. 额外从 `/tmp/daily_review_merged.json` 的 `legacy_compatible_pool[].method_names` 列表中提取所有方法名
 3. 合并去重
 
 **1b: 过滤**
@@ -70,7 +72,7 @@ description: |
 
 为推荐论文生成完整论文笔记：
 
-1. 从今天的推荐文件中，读取分流表，筛选出标记为"必读"的论文（"值得看"和"可跳过"的不生成笔记）
+1. 从 `/tmp/daily_review_merged.json` 的 `legacy_compatible_pool` 中筛选 `decision_zh == "必读"` 的论文（"值得看"和"可跳过"的不生成笔记）
 2. **质量检查已有笔记**（不是只看文件是否存在）：
    - 对已有 `📒 **笔记**` 标记的论文，用 Glob 找到对应笔记文件，检查行数
    - **行数 < 100 的视为骨架笔记，必须重新生成**（删除旧文件，重新调用 paper-reader）
@@ -113,7 +115,7 @@ paper-reader 在独立的 Task agent 中运行，不会占用主 agent 的 conte
 
 1. 从论文标题中提取方法名/模型名（通常是标题冒号前的缩写，如 "DM0"、"BPP"、"PA3FF"）
 2. 与 3a 的笔记索引匹配（不区分大小写）
-3. 也检查富化数据的 `method_names`（如果有残留数据）
+3. 也检查 merged 数据中的 `legacy_compatible_pool[].method_names`
 
 **3c: 插入笔记链接**
 
@@ -164,7 +166,7 @@ cd {VAULT_PATH} && git add -A && git commit -m "daily papers: notes YYYY-MM-DD"
 
 ## 注意事项
 
-- 如果前置文件不存在，必须先运行前面的步骤
+- 如果 `/tmp/daily_review_merged.json` 不存在，必须先运行 merge 阶段
 - `/paper-reader` skill 会自动处理概念库补充，不要重复创建
 - 仅为"必读"论文生成笔记，"值得看"不生成，耗时正常，**不是跳过的理由**
 - 默认自动刷新目录页，但默认不做 git commit / push
