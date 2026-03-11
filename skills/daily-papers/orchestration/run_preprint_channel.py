@@ -21,16 +21,13 @@ for p in (SHARED_DIR, ADAPTERS_DIR, RANKING_DIR, ENRICH_DIR, SCHEMAS_DIR):
         sys.path.insert(0, str(p))
 
 from arxiv_adapter import fetch_arxiv_records
-from biorxiv_adapter import fetch_biorxiv_records
 from domain_ranker import provider_preference_multiplier, score_relevance
 from metadata_ranker import compute_final_meta_score
 from paper_records import RichReviewPaperRecord
 from preprint_enrich_arxiv import enrich_arxiv_preprint
-from preprint_enrich_biorxiv import enrich_biorxiv_preprint
 from user_config import (
     active_domain,
     active_domain_profile,
-    domain_profiles_config,
     preprint_channel_config,
 )
 
@@ -41,58 +38,14 @@ ENRICHED_PATH = TMP_DIR / "preprint_enriched.json"
 REVIEW_RICH_PATH = TMP_DIR / "preprint_review_rich_20.json"
 
 
-ARXIV_DOMAINS = {
-    "intelligent_construction",
-    "geotechnical",
-    "ai4science",
-    "robotics",
-    "ml",
-}
-BIORXIV_DOMAINS = {
-    "biology",
-    "immunology",
-    "molecular_biology",
-    "bioinformatics",
-}
-
-
 def _safe_write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
-def _normalize_domain_name(name: str) -> str:
-    return (name or "").strip().lower()
-
-
 def resolve_preprint_source() -> str:
-    cfg = preprint_channel_config()
-    mode = (cfg.get("source_mode") or "adaptive").lower()
-    default_source = (cfg.get("default_source") or "arxiv").lower()
-
-    if mode in {"arxiv", "biorxiv"}:
-        return mode
-
-    # adaptive mode
-    domain = _normalize_domain_name(active_domain())
-    if domain in ARXIV_DOMAINS:
-        return "arxiv"
-    if domain in BIORXIV_DOMAINS:
-        return "biorxiv"
-
-    # profile-level override
-    profile = active_domain_profile()
-    profile_source = (profile.get("preprint_source") or "").lower()
-    if profile_source in {"arxiv", "biorxiv"}:
-        return profile_source
-
-    # keyword fallback
-    if any(k in domain for k in ["bio", "immun", "molecular"]):
-        return "biorxiv"
-    if any(k in domain for k in ["construct", "geotech", "robot", "ml", "ai4science"]):
-        return "arxiv"
-    return default_source if default_source in {"arxiv", "biorxiv"} else "arxiv"
+    return "arxiv"
 
 
 def _score_and_filter(
@@ -143,10 +96,7 @@ def _score_and_filter(
 def _enrich(records: list[dict], source: str) -> list[dict]:
     enriched: list[dict] = []
     for record in records:
-        if source == "biorxiv":
-            enriched.append(enrich_biorxiv_preprint(record))
-        else:
-            enriched.append(enrich_arxiv_preprint(record))
+        enriched.append(enrich_arxiv_preprint(record))
     return enriched
 
 
@@ -255,22 +205,13 @@ def run() -> dict:
     query = queries[0]
 
     sources_cfg = cfg.get("sources", {}) or {}
-    if source == "biorxiv":
-        b_cfg = sources_cfg.get("biorxiv", {}) or {}
-        raw_records = fetch_biorxiv_records(
-            query=query,
-            server=b_cfg.get("server", "biorxiv"),
-            max_results=int(b_cfg.get("max_results", 200)),
-            window_days=int(b_cfg.get("window_days", 30)),
-        )
-    else:
-        a_cfg = sources_cfg.get("arxiv", {}) or {}
-        raw_records = fetch_arxiv_records(
-            query=query,
-            categories=list(a_cfg.get("categories", [])),
-            max_results=int(a_cfg.get("max_results", 200)),
-            sort_by=str(a_cfg.get("sort_by", "submittedDate")),
-        )
+    a_cfg = sources_cfg.get("arxiv", {}) or {}
+    raw_records = fetch_arxiv_records(
+        query=query,
+        categories=list(a_cfg.get("categories", [])),
+        max_results=int(a_cfg.get("max_results", 200)),
+        sort_by=str(a_cfg.get("sort_by", "submittedDate")),
+    )
 
     scored = _score_and_filter(raw_records, profile=profile, domain_name=domain_name)
     _safe_write_json(RAW_PATH, scored)

@@ -17,7 +17,7 @@ DEFAULT_CONFIG = {
         "zotero_db": "~/Zotero/zotero.sqlite",
         "zotero_storage": "~/Zotero/storage",
     },
-    "active_domain": "geo_timeseries_fm",
+    "active_domain": "intelligent_construction",
     "published_channel": {
         "enabled": True,
         "backend": "paper_fetcher",
@@ -39,7 +39,7 @@ DEFAULT_CONFIG = {
     },
     "preprint_channel": {
         "enabled": True,
-        "source_mode": "adaptive",
+        "source_mode": "arxiv",
         "default_source": "arxiv",
         "rich_n": 20,
         "sources": {
@@ -48,12 +48,6 @@ DEFAULT_CONFIG = {
                 "categories": ["cs.RO", "cs.AI", "cs.LG", "eess.SP"],
                 "max_results": 200,
                 "sort_by": "submittedDate",
-            },
-            "biorxiv": {
-                "enabled": True,
-                "max_results": 200,
-                "window_days": 30,
-                "server": "biorxiv",
             },
         },
     },
@@ -85,12 +79,7 @@ DEFAULT_CONFIG = {
                 "early warning",
             ],
             "negative_keywords": [
-                "medical imaging",
-                "clinical",
-                "genomics",
-                "protein",
-                "drug discovery",
-                "epidemic",
+                "weather forecast",
                 "monsoon",
                 "rocket",
                 "ignition",
@@ -121,7 +110,6 @@ DEFAULT_CONFIG = {
                 "pubmed": 0.1,
                 "europe_pmc": 0.1,
                 "arxiv": 1.2,
-                "biorxiv": 0.1,
             },
             "preprint_source": "arxiv",
         },
@@ -143,13 +131,12 @@ DEFAULT_CONFIG = {
                 "digital twin",
             ],
             "negative_keywords": [
-                "medical imaging",
                 "weather forecast",
-                "protein design",
-                "drug discovery",
                 "speech synthesis",
                 "gui agent",
                 "text-to-sql",
+                "computer graphics",
+                "advertising optimization",
             ],
             "boost_keywords": [
                 "field deployment",
@@ -165,50 +152,8 @@ DEFAULT_CONFIG = {
                 "pubmed": 0.2,
                 "europe_pmc": 0.2,
                 "arxiv": 1.0,
-                "biorxiv": 0.1,
             },
             "preprint_source": "arxiv",
-        },
-        "biology": {
-            "queries": [
-                "immunology",
-                "molecular biology",
-                "bioinformatics",
-                "single-cell sequencing",
-                "protein interaction",
-            ],
-            "positive_keywords": [
-                "immunology",
-                "molecular biology",
-                "bioinformatics",
-                "single-cell",
-                "transcriptomics",
-                "proteomics",
-                "gene regulation",
-            ],
-            "negative_keywords": [
-                "autonomous driving",
-                "robot manipulation",
-                "construction machinery",
-                "computer graphics",
-                "game engine",
-            ],
-            "boost_keywords": [
-                "in vivo",
-                "clinical cohort",
-                "wet-lab validation",
-                "benchmark dataset",
-                "causal mechanism",
-            ],
-            "source_preferences": {
-                "openalex": 1.0,
-                "crossref": 0.9,
-                "pubmed": 1.2,
-                "europe_pmc": 1.2,
-                "arxiv": 0.4,
-                "biorxiv": 1.3,
-            },
-            "preprint_source": "biorxiv",
         },
     },
     "automation": {
@@ -234,7 +179,7 @@ def load_user_config() -> dict:
     config = copy.deepcopy(DEFAULT_CONFIG)
     config_dir = Path(__file__).resolve().parent
 
-    for filename in ("user-config.json", "user-config.local.json"):
+    for filename in ("user-config.example.json", "user-config.local.json"):
         config_path = config_dir / filename
         if not config_path.exists():
             continue
@@ -244,7 +189,7 @@ def load_user_config() -> dict:
             _deep_merge(config, loaded)
 
     if config.get("active_domain") not in config.get("domain_profiles", {}):
-        config["active_domain"] = "geo_timeseries_fm"
+        config["active_domain"] = "intelligent_construction"
 
     return config
 
@@ -258,7 +203,7 @@ def paths_config() -> dict:
 
 
 def active_domain() -> str:
-    return str(load_user_config().get("active_domain", "geo_timeseries_fm"))
+    return str(load_user_config().get("active_domain", "intelligent_construction"))
 
 
 def domain_profiles_config() -> dict:
@@ -268,7 +213,7 @@ def domain_profiles_config() -> dict:
 def active_domain_profile() -> dict:
     profiles = domain_profiles_config()
     name = active_domain()
-    return profiles.get(name, profiles.get("geo_timeseries_fm", {}))
+    return profiles.get(name, profiles.get("intelligent_construction", {}))
 
 
 def published_channel_config() -> dict:

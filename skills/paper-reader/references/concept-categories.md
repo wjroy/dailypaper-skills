@@ -26,17 +26,6 @@
 | `5-Survey` | 综述和 benchmark | survey, benchmark |
 | `0-待分类` | 无法判断时使用 | - |
 
-## biology
-
-| 子目录 | 说明 | 示例 |
-| --- | --- | --- |
-| `1-免疫与疾病机制` | 免疫过程、疾病机理、临床线索 | immune, cytokine, biomarker |
-| `2-组学与生物信息` | 单细胞、转录组、序列分析 | scRNA-seq, transcriptomics, BLAST |
-| `3-蛋白质与分子设计` | 蛋白结构、分子动力学、药物设计 | AlphaFold, docking, protein |
-| `4-计算方法` | 通用计算方法和模型 | transformer, GNN, VAE |
-| `5-Survey` | 综述和 benchmark | review, tutorial |
-| `0-待分类` | 无法判断时使用 | - |
-
 ## 概念笔记模板
 
 ```markdown

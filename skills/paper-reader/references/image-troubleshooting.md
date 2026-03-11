@@ -1,30 +1,54 @@
 # 图片排错
 
-## 首选顺序
+`paper-reader` 现在把图像提取当成标准流程，而不是可选补丁。默认顺序是：
 
-1. `extract_arxiv_figures.py`
-2. `https://arxiv.org/html/{arxiv_id}`
-3. 项目主页
-4. `pdfimages -png`
+0. `skills/paper-reader/scripts/run_figure_pipeline.py`
+1. `skills/paper-reader/scripts/extract_embedded_figures.py`
+2. `skills/paper-reader/scripts/render_figure_pages.py`
+3. `skills/paper-reader/scripts/build_figure_manifest.py`
+4. `skills/paper-reader/scripts/link_figures_to_note.py`
+
+## 为什么要这样做
+
+- 单一 embedded extraction 容易漏掉 vector / composite figure
+- recall-first 的目标是减少返工，而不是最小化插图数量
+- 如果 clean crop 做不到，保留 full-page rendered fallback 也比漏图更好
+
+## 自动 fallback 触发条件
+
+满足任一条件就会自动触发 rendered fallback：
+
+- embedded figure count 偏少
+- 方法图 / 框架图缺失
+- 结果图缺失
+- figure-like 页面明显多于 embedded 图数量
 
 ## 常见问题
 
-- arXiv HTML 里有 icon / logo，容易误当成 Figure
-- 相对路径拼接时可能把 `arxiv_id` 重复一遍
-- 某些论文只有 PDF 里有完整图片
+- PDF 里很多是矢量图，`pdfimages` 抽不出完整结果，这时会保留 full-page render
+- 某些页面会同时包含 caption、表格、结果图，manifest 会优先保留，不轻易丢弃
+- 如果 caption 提取不到，会退回页面文本关键词做角色判断
+- 如果图片文件没成功写进 vault，笔记不会插入坏 wiki-link
 
-## 快速检查
+## 最小检查项
 
-- 图片 URL 是否能直接打开
-- 文件是否明显不是正文 figure
-- 文件过小（如 `<10KB`）时是否提到了错误资源
+- `embedded figures extracted: X`
+- `rendered fallback pages: Y`
+- `total candidate figures: Z`
+- `key method/framework figures: A`
+- `key result figures: B`
+- `figure manifest saved to: ...`
+- `note linked with figures: yes/no`
 
-## 本地化兜底
+## Obsidian 落盘规则
 
-笔记保存后可运行：
+- 图片目录：`assets/papers/<paper_id>/figures/`
+- manifest：`assets/papers/<paper_id>/figures/figure_manifest.json`
+- 笔记引用：`![[assets/papers/<paper_id>/figures/<filename>.png]]`
+- 禁止写本机绝对路径
 
-```bash
-python3 ../daily-papers/download_note_images.py "{笔记路径}"
-```
+## 仍然可能不完美的情况
 
-不可访问的外链会下载到本地并替换为 wikilink。
+- 一个整页里有多个复杂子图时，当前 fallback 先保留 full-page render，不强制做脆弱裁剪
+- 某些 PDF 页面文字层很差时，caption 和角色判断会降级到 `unknown`
+- 图片数量很多时，`全部候选图` 会比较长，但这是 recall-first 的有意选择

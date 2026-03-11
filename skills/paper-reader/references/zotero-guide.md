@@ -1,14 +1,16 @@
-# Zotero 单篇读取指南
+# Zotero 读取指南
 
-`paper-reader` 只依赖 Zotero 的单篇检索和附件定位，不再承担批量阅读入口。
+`paper-reader` 通过 Zotero 做两件事：条目检索，以及分类批量读取。
 
 ## 常用命令
 
 ```bash
-python3 assets/zotero_helper.py search "paper title"
-python3 assets/zotero_helper.py info {item_id}
-python3 assets/zotero_helper.py pdf {item_id}
-python3 assets/zotero_helper.py collections
+python skills/paper-reader/assets/zotero_helper.py search "paper title"
+python skills/paper-reader/assets/zotero_helper.py info {item_id}
+python skills/paper-reader/assets/zotero_helper.py pdf {item_id}
+python skills/paper-reader/assets/zotero_helper.py collections
+python skills/paper-reader/assets/zotero_helper.py find-collection "机器人"
+python skills/paper-reader/assets/zotero_helper.py papers {collection_id} --recursive
 ```
 
 ## 单篇读取流程
@@ -27,8 +29,10 @@ python3 assets/zotero_helper.py collections
 3. PDF URL
 4. DOI / 期刊页
 
-## 什么时候更新分类
+## 分类批读流程
 
-只有在你明确要整理笔记库时，才需要再单独调用分类脚本。
+1. 用 `find-collection` 或 `collections` 定位分类
+2. 用 `papers {collection_id} --recursive` 列出候选论文
+3. 对目标论文逐篇读取并按同一模板输出
 
-`paper-reader` 默认关注单篇阅读，不要求每次都改 Zotero 分类结构。
+`zotero_helper.py` 只提供只读查询，不修改 Zotero 分类结构。

@@ -87,7 +87,7 @@ def _load_search_aggregator() -> tuple[Any | None, str]:
         pass
 
     # Local path fallback for sibling repo layout.
-    repo_root = CURRENT_DIR.parents[3]
+    repo_root = CURRENT_DIR.parents[4]
     local_repo = repo_root / "paper-fetcher"
     if local_repo.exists():
         if str(local_repo) not in sys.path:

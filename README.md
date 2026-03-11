@@ -1,20 +1,16 @@
 # dailypaper-skills
 
-面向 Obsidian 研究工作流的 3 个紧凑 skill：
+面向 Obsidian 的紧凑论文流水线仓库：发现论文、生成研究笔记、刷新索引。
 
-- `daily-papers`：每日论文推荐总入口
-- `paper-reader`：单篇论文阅读 -> 研究笔记输出
-- `generate-mocs`：手动刷新论文/概念目录页
-
-这套仓库现在只保留这 3 个公开入口。抓取、rich review、笔记回填等都已经收进 `daily-papers` 内部，不再作为独立 skill 暴露。
+对最终用户，公开入口只有 3 个：`daily-papers`、`paper-reader`、`generate-mocs`。其余抓取、排序、PDF enrich、合并、笔记回填都属于内部实现模块，不单独触发。
 
 ## 这套东西做什么
 
-- 跑每日论文推荐，输出 `DailyPapers/YYYY-MM-DD-论文推荐.md`
-- 读取单篇 arXiv / 本地 PDF / Zotero 条目，生成结构化研究笔记
-- 自动维护 Obsidian 里的论文目录页和概念目录页
+- 生成每日论文推荐，输出到 `DailyPapers/`
+- 读取单篇论文或一个 Zotero 分类，先强制提图，再输出统一格式的研究笔记
+- 维护 Obsidian 里的论文目录页和概念目录页
 
-最终产物通常长这样：
+最终产物通常落在你的 Obsidian 库里：
 
 ```text
 ObsidianVault/
@@ -23,11 +19,9 @@ ObsidianVault/
 └── 论文笔记/_概念/.../*.md
 ```
 
-模板见 `obsidian-templates/论文笔记模板.md`。
+## 最小用法
 
-## 怎么用
-
-最常用的 3 句话：
+平时只需要 3 句话：
 
 ```text
 今日论文推荐
@@ -35,17 +29,83 @@ ObsidianVault/
 更新索引
 ```
 
-其他常见说法：
+其他公开说法只保留这些：
 
 ```text
 过去3天论文推荐
 过去一周论文推荐
-读一下这篇论文 ~/Downloads/paper.pdf
+读一下这篇论文 https://arxiv.org/abs/2509.24527
 快速看一下这篇论文 https://arxiv.org/abs/2509.24527
+批判性分析这篇论文 https://arxiv.org/abs/2509.24527
 读一下 Zotero 里的 Diffusion Policy
+批量读一下 Zotero 里 机器人 这个分类下的论文
+更新索引
 ```
 
-`daily-papers` 负责完整推荐流水线，`paper-reader` 只负责单篇阅读，`generate-mocs` 只负责补刷目录。
+## 3 个公开 skill
+
+- `skills/daily-papers`：每日推荐总入口，负责整条推荐流水线
+- `skills/paper-reader`：读取单篇论文，或按同一模板批量读取一个 Zotero 分类；默认先跑 recall-first 图像提取与 Obsidian 落盘
+- `skills/generate-mocs`：手动刷新论文目录页和概念目录页
+
+## Published / Preprint 双通道
+
+- Published 通道：先做多源 metadata 召回和分诊，再停在 PDF 检查点，等你把需要的 PDF 补进 Zotero 或本地路径
+- Preprint 通道：直接从 arXiv 拉取并 enrich
+- Merge：两路 rich review 合并后渲染推荐页，再把 `must_read` 论文送进笔记生成
+
+如果 Published 通道返回 `awaiting_published_pdf_import`，这是正常检查点，不是失败。补好 PDF 后继续运行：`python skills/daily-papers/state/resume_published.py`。
+
+## 配置方式
+
+本仓库采用单一路径策略：提交 `user-config.example.json`，本机只改 `user-config.local.json`。
+
+加载顺序：`DEFAULT_CONFIG` -> `skills/_shared/user-config.example.json` -> `skills/_shared/user-config.local.json`
+
+第一次安装后：
+
+1. 复制 `skills/_shared/user-config.example.json`
+2. 重命名为 `skills/_shared/user-config.local.json`
+3. 只修改你的本机路径和领域配置
+
+需要先改的通常只有：
+
+- `paths.obsidian_vault`
+- `paths.zotero_db`
+- `paths.zotero_storage`
+- `active_domain`
+- `domain_profiles.<name>.queries`
+
+仓库不会提交你的个人路径；`.gitignore` 已忽略 `skills/_shared/user-config.local.json`。
+
+当前主线领域是智能建造 / 岩土监测 / 时序预测 / foundation model，内置 profile 保留：
+
+- `intelligent_construction`
+- `geo_timeseries_fm`
+
+## 单一笔记模板
+
+论文笔记只遵循一个 canonical template：`obsidian-templates/论文笔记模板.md`
+
+- `paper-reader` 按这个模板生成
+- `daily-papers` 的 notes stage 按这个模板做最低质量检查
+- README 展示的也是这个模板
+
+图像章节也统一收在这个模板里：
+
+- `关键图示 (Key Figures)`：面向阅读，优先展示方法/框架图和核心结果图
+- `全部候选图 (All Candidate Figures)`：面向完整保留，尽量展示所有候选图
+
+如果你想改输出结构，只改 `obsidian-templates/论文笔记模板.md`。
+
+## 输出到 Obsidian 的结果
+
+- 推荐页：`{vault}/DailyPapers/YYYY-MM-DD-论文推荐.md`
+- 论文笔记：`{vault}/论文笔记/.../*.md`
+- 概念笔记：`{vault}/论文笔记/_概念/.../*.md`
+- 论文图片：`{vault}/assets/papers/<paper_id>/figures/*.png`
+- 图像 manifest：`{vault}/assets/papers/<paper_id>/figures/figure_manifest.json`
+- 目录页：由 `generate-mocs` 或自动刷新生成
 
 ## 安装
 
@@ -54,118 +114,57 @@ ObsidianVault/
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [Obsidian](https://obsidian.md/)
 - [Python 3.8+](https://www.python.org/)
-- [`poppler-utils`](https://poppler.freedesktop.org/)（`apt install poppler-utils` / `brew install poppler`）
-- [Zotero](https://www.zotero.org/)（可选）
+- [`poppler-utils`](https://poppler.freedesktop.org/)
+- [Zotero](https://www.zotero.org/)（可选，但 Published PDF 检查点和 Zotero 读取会用到）
 
 在仓库根目录运行：
 
 ```bash
 mkdir -p ~/.claude/skills
 cp -r ./skills/* ~/.claude/skills/
-
-VAULT=~/ObsidianVault
-mkdir -p "$VAULT/DailyPapers" \
-  "$VAULT/论文笔记/_概念/0-待分类" \
-  "$VAULT/论文笔记/_待整理"
+cp -r ./obsidian-templates ~/.claude/skills/obsidian-templates
+cp ~/.claude/skills/_shared/user-config.example.json ~/.claude/skills/_shared/user-config.local.json
 ```
 
-## 配置
-
-主配置文件：`~/.claude/skills/_shared/user-config.json`
-
-当前配置心智只围绕 4 组：
-
-- `active_domain`
-- `domain_profiles`
-- `published_channel`
-- `preprint_channel`
-
-常改的项：
-
-| 配置项 | 说明 |
-| --- | --- |
-| `paths.obsidian_vault` | Obsidian 库路径 |
-| `paths.zotero_db` | Zotero 数据库路径 |
-| `paths.zotero_storage` | Zotero 附件路径 |
-| `active_domain` | 当前激活的领域 |
-| `domain_profiles.<name>.queries` | 领域检索 query |
-| `domain_profiles.<name>.positive_keywords` | 领域正向关键词 |
-| `domain_profiles.<name>.negative_keywords` | 领域排除词 |
-| `domain_profiles.<name>.boost_keywords` | 领域加分词 |
-
-内置 profile：
-
-- `geo_timeseries_fm`
-- `intelligent_construction`
-- `biology`
-
-默认行为：
-
-- `auto_refresh_indexes = true`
-- `git_commit = false`
-- `git_push = false`
-
-## v2 流水线
-
-`daily-papers` 当前是双通道发现 + 内部汇合：
-
-1. Published 通道：`paper-fetcher` 多源 metadata 召回 -> lite 分诊 -> Zotero/PDF 检查点 -> PDF enrich -> rich review
-2. Preprint 通道：`arXiv / bioRxiv` 抓取 -> enrich -> rich review
-3. 汇合层：输出 `/tmp/daily_review_merged.json`
-4. 内部 notes stage：只给 must-read 论文生成笔记并回填推荐页
-
-主入口仍然只有一句：`今日论文推荐`。
-
-更多实现细节见 `ARCHITECTURE.md`。
-
-## 仓库结构
-
-```text
-skills/
-├── _shared/
-├── daily-papers/
-├── generate-mocs/
-└── paper-reader/
-```
-
-只有 3 个公开 skill：
-
-- `daily-papers`
-- `paper-reader`
-- `generate-mocs`
-
-`_shared/` 只放配置和共享脚本，不算公开 skill。
-
-## 最小可运行 Demo
-
-```bash
-python skills/daily-papers/orchestration/run_daily_pipeline.py
-python skills/daily-papers/state/resume_published.py
-```
-
-首次运行默认会在 Published PDF 检查点暂停。下载好 PDF 后再恢复继续。
+然后把 `~/.claude/skills/_shared/user-config.local.json` 改成你的本机配置。
 
 ## FAQ
 
-**可以一步跑完整流程吗？**
+**一句话能让它做什么？**
 
-可以。用户入口就是 `今日论文推荐`。默认只在 Published PDF 检查点暂停一次。
+可以。最常见就是 `今日论文推荐`、`读一下这篇论文 ...`、`更新索引`。
 
-**paper-reader 现在负责什么？**
+**什么时候会停在 Published PDF 检查点？**
 
-只负责单篇论文阅读和研究笔记生成，支持 arXiv、本地 PDF、Zotero 单条目和结构化 payload。
+当 Published 候选论文需要本地 PDF 做 rich review，但 `published_pdf_inputs.json` 还没补齐时就会暂停。
 
-**不用 Zotero 可以吗？**
+**如何继续？**
 
-可以。每日推荐不依赖 Zotero；单篇阅读也支持直接输入 arXiv 链接或本地 PDF。
+补好 PDF 后运行 `python skills/daily-papers/state/resume_published.py`。
+
+**Zotero 在流程里做什么？**
+
+它主要承担 Published 通道的 PDF 补齐，以及 `paper-reader` 的条目检索、附件定位、分类批读。
+
+**为什么 `paper-reader` 现在默认会提很多图？**
+
+因为这里采用 recall-first 策略：优先减少漏图和返工，而不是只挑最少几张图。关键方法图、框架图、结果图如果 embedded extraction 不完整，会自动触发 full-page rendered fallback。
+
+**Obsidian 里的图片放哪里？**
+
+统一落在 `assets/papers/<paper_id>/figures/`，笔记里统一用 `![[assets/papers/<paper_id>/figures/<filename>.png]]`。
+
+**Obsidian 在流程里做什么？**
+
+它是最终输出仓库：推荐页、论文笔记、概念笔记、MOC 都直接写进去。
 
 **目录页会自动刷新吗？**
 
-默认会。`更新索引` 是手动补刷入口。
+默认会；也可以手动说 `更新索引`。
 
-**默认会动我的 git 仓库吗？**
+**默认会提交我的个人路径吗？**
 
-不会。只有你自己打开 `git_commit` / `git_push` 才会执行。
+不会。示例配置和本地配置已经拆开。
 
 ## License
 

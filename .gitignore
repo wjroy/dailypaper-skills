@@ -1,10 +1,14 @@
-# Personal Zotero collection mapping (AI auto-generated)
+# Local-only config
+skills/_shared/user-config.local.json
+
+# Local/generated helper state
 skills/paper-reader/assets/collection_mapping.json
 
 # Python cache
 __pycache__/
 *.pyc
 .pytest_cache/
+.ruff_cache/
 
 # Editor
 .vscode/

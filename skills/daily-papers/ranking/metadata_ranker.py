@@ -23,7 +23,6 @@ PROVIDER_QUALITY = {
     "pubmed": 0.95,
     "europe_pmc": 0.9,
     "arxiv": 0.75,
-    "biorxiv": 0.75,
     "unpaywall": 0.8,
 }
 

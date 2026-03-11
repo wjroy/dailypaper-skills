@@ -1,14 +1,16 @@
 # Architecture
 
-当前仓库已经收敛为 3 个公开入口：
+## Public Entrypoints
 
-- `daily-papers`
-- `paper-reader`
-- `generate-mocs`
+仓库对外只有 3 个入口：
 
-其余抓取、review、notes 都是内部阶段，不再作为独立 skill 存在。
+- `skills/daily-papers`
+- `skills/paper-reader`
+- `skills/generate-mocs`
 
-## 总览
+`skills/_shared` 只放共享配置和脚本，不是可触发 skill。
+
+## Overall Flow
 
 ```text
 daily-papers
@@ -16,39 +18,32 @@ daily-papers
   │   ├─ paper_fetcher_adapter
   │   ├─ metadata_ranker + domain_ranker
   │   ├─ export_zotero_bundle
-  │   └─ /tmp/published_raw_200.json
-  │      /tmp/published_lite_50.json
-  │      /tmp/published_pdf_candidates_20.json
-  │
-  ├─ pause / resume
-  │   ├─ /tmp/pipeline_state.json
-  │   └─ state/resume_published.py
-  │
-  ├─ published rich stage
-  │   ├─ enrich/published_enrich_from_pdf.py
-  │   └─ /tmp/published_enriched_20.json
-  │      /tmp/published_review_rich_20.json
+  │   └─ pause at PDF checkpoint when local PDFs are missing
   │
   ├─ preprint channel
-  │   ├─ adapters/arxiv_adapter.py
-  │   ├─ adapters/biorxiv_adapter.py
-  │   ├─ enrich/preprint_enrich_arxiv.py
-  │   └─ enrich/preprint_enrich_biorxiv.py
+  │   ├─ arxiv_adapter
+  │   └─ preprint_enrich_arxiv
   │
   ├─ merge
-  │   └─ /tmp/daily_review_merged.json
+  │   └─ merge_reviewed_papers.py
   │
-  └─ internal notes stage
-      ├─ references/notes-stage-guide.md
-      ├─ invoke paper-reader for must-read papers
-      ├─ backfill note links into recommendation file
-      └─ refresh MOCs when enabled
+  ├─ notes generation
+  │   ├─ internal notes-stage rules
+  │   ├─ invoke paper-reader on must-read papers
+  │   └─ backfill note links into recommendation file
+  │
+  └─ index refresh
+      └─ invoke shared MOC generators when enabled
 
 paper-reader
-  ├─ input: arXiv / local PDF / Zotero single item / structured payload
-  ├─ figure extraction: assets/extract_arxiv_figures.py
-  ├─ note template: assets/paper-note-template.md
-  └─ output: single-paper research note
+  ├─ input: arXiv / local PDF / Zotero single item / Zotero collection / structured payload
+  ├─ mandatory figure pipeline
+  │   ├─ scripts/extract_embedded_figures.py
+  │   ├─ scripts/render_figure_pages.py
+  │   ├─ scripts/build_figure_manifest.py
+  │   └─ scripts/link_figures_to_note.py
+  ├─ zotero lookup: skills/paper-reader/assets/zotero_helper.py
+  └─ output: note that follows obsidian-templates/论文笔记模板.md
 
 generate-mocs
   ├─ _shared/generate_concept_mocs.py
@@ -61,14 +56,14 @@ generate-mocs
 
 职责：
 
-- 运行 Published 通道
-- 运行 Preprint 通道
-- 在 PDF 检查点暂停或恢复
+- 跑 Published channel
+- 跑 Preprint channel
+- 在 PDF 检查点暂停和恢复
 - 合并两路 rich review 结果
 - 渲染推荐页
-- 驱动内部 notes stage
+- 驱动内部 notes generation
 
-### Published 通道
+### Published Channel
 
 核心文件：
 
@@ -78,116 +73,116 @@ generate-mocs
 - `skills/daily-papers/ranking/domain_ranker.py`
 - `skills/daily-papers/export/export_zotero_bundle.py`
 
-输出：
+主要输出：
 
 - `/tmp/published_raw_200.json`
 - `/tmp/published_lite_50.json`
 - `/tmp/published_pdf_candidates_20.json`
 
-### Published rich stage
+### PDF Checkpoint / Resume
 
 核心文件：
 
-- `skills/daily-papers/orchestration/run_published_rich_channel.py`
-- `skills/daily-papers/enrich/published_enrich_from_pdf.py`
+- `skills/daily-papers/state/pipeline_state.py`
+- `skills/daily-papers/state/resume_published.py`
 
-输出：
+状态文件：
 
-- `/tmp/published_enriched_20.json`
-- `/tmp/published_review_rich_20.json`
+- `/tmp/pipeline_state.json`
 
-### Preprint 通道
+### Preprint Channel
 
 核心文件：
 
 - `skills/daily-papers/orchestration/run_preprint_channel.py`
 - `skills/daily-papers/adapters/arxiv_adapter.py`
-- `skills/daily-papers/adapters/biorxiv_adapter.py`
 - `skills/daily-papers/enrich/preprint_enrich_arxiv.py`
-- `skills/daily-papers/enrich/preprint_enrich_biorxiv.py`
 
-输出：
+主要输出：
 
 - `/tmp/preprint_raw.json`
 - `/tmp/preprint_enriched.json`
 - `/tmp/preprint_review_rich_20.json`
 
-### Merge 与推荐页
+### Merge
 
 核心文件：
 
 - `skills/daily-papers/merge/merge_reviewed_papers.py`
 - `skills/daily-papers/render/render_daily_recommendation.py`
 
-主输出：
+主要输出：
 
 - `/tmp/daily_review_merged.json`
 - `DailyPapers/YYYY-MM-DD-论文推荐.md`
 
-### 内部资源
+### Notes Generation
 
-- `skills/daily-papers/templates/lite_review_template.md`
-- `skills/daily-papers/templates/rich_review_template.md`
+核心资源：
+
 - `skills/daily-papers/references/notes-stage-guide.md`
+- `obsidian-templates/论文笔记模板.md`
 
-这些文件只作为内部阶段资源存在，不是公开 skill。
+规则：
+
+- 只给 `must_read` 论文生成笔记
+- 笔记由 `paper-reader` 生成，不手写空骨架
+- 生成完成后回填推荐页中的笔记链接
 
 ## paper-reader
 
-paper-reader 已收紧为单篇研究笔记生成器。
+`paper-reader` 负责把单篇论文或一个 Zotero 分类收敛成统一格式的研究笔记。
 
-保留能力：
+输入路由：
 
-- 单篇 arXiv 阅读
-- 单篇本地 PDF 阅读
-- 单篇 Zotero 条目阅读
-- 结构化 payload 输入
-- arXiv HTML figure 提取
-- 研究笔记输出
+- arXiv URL
+- 本地 PDF
+- Zotero 单条目
+- Zotero 分类批量读取
+- 结构化 payload
 
-不再承担：
+笔记契约：
 
-- 批量 Zotero 阅读入口
-- 长驻式后台运行
-- 大而全多模式平台化扩张
+- canonical template: `obsidian-templates/论文笔记模板.md`
+- embedded extraction: `skills/paper-reader/scripts/extract_embedded_figures.py`
+- rendered fallback: `skills/paper-reader/scripts/render_figure_pages.py`
+- manifest build: `skills/paper-reader/scripts/build_figure_manifest.py`
+- note linking: `skills/paper-reader/scripts/link_figures_to_note.py`
+- zotero lookup: `skills/paper-reader/assets/zotero_helper.py`
+- quality rules: `skills/paper-reader/references/quality-standards.md`
 
-## 配置
+图像策略：
 
-配置文件：`skills/_shared/user-config.json`
+- figure extraction 是写笔记前的强制阶段
+- 先做 embedded extraction，再根据缺失情况自动做 rendered fallback
+- 结果统一落到 `assets/papers/<paper_id>/figures/`
+- 笔记只通过 manifest 写入 `关键图示 (Key Figures)` 和 `全部候选图 (All Candidate Figures)`
 
-当前只围绕以下主键：
+## generate-mocs
 
-- `active_domain`
-- `domain_profiles`
-- `published_channel`
-- `preprint_channel`
-- `automation`
+`generate-mocs` 只做目录页刷新：
 
-内置 domain profile：
+- `skills/_shared/generate_concept_mocs.py`
+- `skills/_shared/generate_paper_mocs.py`
 
-- `geo_timeseries_fm`
-- `intelligent_construction`
-- `biology`
+## Config Loading
 
-## 最小验证命令
+配置加载顺序固定为：
 
-```bash
-python skills/daily-papers/orchestration/run_daily_pipeline.py
-python skills/daily-papers/state/resume_published.py
-python skills/_shared/generate_concept_mocs.py
-python skills/_shared/generate_paper_mocs.py
-```
+1. `skills/_shared/user_config.py` 里的 `DEFAULT_CONFIG`
+2. `skills/_shared/user-config.example.json`
+3. `skills/_shared/user-config.local.json`
 
-`paper-reader` 没有额外 CLI 包装层，主校验点是：
+提交示例，不提交个人路径。
 
-- `skills/paper-reader/SKILL.md`
-- `skills/paper-reader/assets/extract_arxiv_figures.py`
-- `skills/paper-reader/assets/paper-note-template.md`
+## State / Resume
 
-## 设计取向
+- `daily-papers` 在 Published PDF 检查点把状态写入 `/tmp/pipeline_state.json`
+- PDF 路径映射写入 `/tmp/published_pdf_inputs.json`
+- 恢复命令：`python skills/daily-papers/state/resume_published.py`
 
-- 对外入口少
-- 内部阶段清楚
-- 配置以 domain-aware 为中心
-- 单篇阅读和每日推荐分工明确
-- 优先可维护，不保留旧单通道遗留壳层
+## Internal Modules
+
+内部模块保留在 `skills/daily-papers` 的 `adapters/`、`enrich/`、`ranking/`、`merge/`、`render/`、`state/`、`templates/`、`references/` 下。
+
+这些模块服务公开入口，但不面向最终用户单独触发。

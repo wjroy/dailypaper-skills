@@ -3,7 +3,7 @@
 
 These dataclasses define the canonical JSON contracts across:
 - Published channel (paper-fetcher metadata -> lite review -> PDF enrich -> rich review)
-- Preprint channel (arXiv/bioRxiv fetch -> enrich -> rich review)
+- Preprint channel (arXiv fetch -> enrich -> rich review)
 - Merge layer (rich reviewed pools -> notes/reader/MOC)
 
 Design rule: fields that cannot be extracted must stay empty and be reported via
@@ -27,7 +27,7 @@ class RawPaperRecord:
 
     Field source notes:
     - identity fields: adapter-generated canonical IDs
-    - metadata fields: upstream providers (paper-fetcher/arXiv/bioRxiv)
+    - metadata fields: upstream providers (paper-fetcher/arXiv)
     - domain/match fields: local domain profile matching and ranking pipeline
     """
 
@@ -80,8 +80,8 @@ class RawPaperRecord:
 class LiteReviewPaperRecord(RawPaperRecord):
     """Record after metadata-first triage (no PDF dependence)."""
 
-    review_tier: Literal["lite"] = "lite"
-    evidence_scope: Literal["metadata_only"] = "metadata_only"
+    review_tier: str = "lite"
+    evidence_scope: str = "metadata_only"
     lite_decision: ReviewDecisionLite = "hold"
     lite_confidence: float = 0.0
     lite_reasoning: str = ""
@@ -92,8 +92,8 @@ class LiteReviewPaperRecord(RawPaperRecord):
 class RichReviewPaperRecord(LiteReviewPaperRecord):
     """Record after enrich + rich review (supports notes/reader downstream)."""
 
-    review_tier: Literal["rich"] = "rich"
-    evidence_scope: Literal["enriched_metadata_or_pdf"] = "enriched_metadata_or_pdf"
+    review_tier: str = "rich"
+    evidence_scope: str = "enriched_metadata_or_pdf"
 
     local_pdf_paths: list[str] = field(default_factory=list)
     zotero_attachment_paths: list[str] = field(default_factory=list)
@@ -127,7 +127,7 @@ class RichReviewPaperRecord(LiteReviewPaperRecord):
 FIELD_SOURCE_NOTES: dict[str, dict[str, str]] = {
     "RawPaperRecord": {
         "paper_id": "Adapter-generated canonical ID (prefer DOI, else source+source_id hash).",
-        "source/source_providers": "Upstream retrieval adapters (paper-fetcher/arXiv/bioRxiv).",
+        "source/source_providers": "Upstream retrieval adapters (paper-fetcher/arXiv).",
         "title/abstract/authors/doi/url/venue": "Provider metadata returned by upstream APIs.",
         "matched_*": "Domain profile keyword matching in ranking stage.",
         "*_score/final_meta_score": "Metadata ranker output with weighted scoring formula.",

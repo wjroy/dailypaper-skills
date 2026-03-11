@@ -24,7 +24,7 @@ description: |
    - 明确告诉用户这是预期暂停点
    - 告知 Zotero 导入文件路径
    - 告知恢复命令：`python skills/daily-papers/state/resume_published.py`
-4. 用户完成 PDF 下载后，调用 `resume_published.py` 继续。
+4. 用户完成 PDF 下载后，调用 `python skills/daily-papers/state/resume_published.py` 继续。
 5. 完成后汇报：
    - 推荐文件位置
    - 生成了多少篇 must-read 笔记
