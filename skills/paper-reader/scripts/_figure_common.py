@@ -4,18 +4,13 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
-import sys
 import unicodedata
 from pathlib import Path
 from typing import Any
 
-
-_SHARED_DIR = Path(__file__).resolve().parents[2] / "_shared"
-if str(_SHARED_DIR) not in sys.path:
-    sys.path.insert(0, str(_SHARED_DIR))
-
-from user_config import obsidian_vault_path
+from _paper_reader_runtime import obsidian_relpath, paper_assets_dir
 
 
 ROLE_KEYWORDS = {
@@ -32,6 +27,7 @@ ROLE_KEYWORDS = {
     ],
     "supplementary": ["appendix", "supplementary", "additional", "extra"],
 }
+
 
 FIGURE_LIKE_KEYWORDS = sorted(
     {
@@ -66,7 +62,7 @@ def paper_id_from_inputs(paper_id: str | None, pdf_path: str | Path) -> str:
 
 
 def figures_dir_for_paper(paper_id: str) -> Path:
-    return obsidian_vault_path() / "assets" / "papers" / paper_id / "figures"
+    return paper_assets_dir(paper_id)
 
 
 def manifest_path_for_paper(paper_id: str) -> Path:
@@ -74,11 +70,7 @@ def manifest_path_for_paper(paper_id: str) -> Path:
 
 
 def vault_relpath(path: Path) -> str:
-    return path.relative_to(obsidian_vault_path()).as_posix()
-
-
-def wiki_link(path: Path) -> str:
-    return f"![[{vault_relpath(path)}]]"
+    return obsidian_relpath(path)
 
 
 def png_dimensions(path: Path) -> tuple[int, int]:
@@ -93,11 +85,48 @@ def png_dimensions(path: Path) -> tuple[int, int]:
     return (width, height)
 
 
+def command_exists(name: str) -> bool:
+    return shutil.which(name) is not None
+
+
 def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, check=False, capture_output=True, text=True)
+    try:
+        return subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except FileNotFoundError as exc:
+        return subprocess.CompletedProcess(
+            command,
+            127,
+            stdout="",
+            stderr=f"command not found: {command[0]} ({exc})",
+        )
+    except Exception as exc:
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr=str(exc))
+
+
+def _pymupdf_pages(pdf_path: str | Path) -> list[str]:
+    try:
+        import fitz  # type: ignore
+
+        pages: list[str] = []
+        with fitz.open(str(pdf_path)) as doc:
+            for page in doc:
+                pages.append((page.get_text("text") or "").strip())
+        return pages
+    except Exception:
+        return []
 
 
 def pdftotext_pages(pdf_path: str | Path) -> list[str]:
+    pages = _pymupdf_pages(pdf_path)
+    if pages:
+        return pages
     proc = run_command(["pdftotext", "-layout", str(pdf_path), "-"])
     if proc.returncode != 0:
         return []
@@ -159,6 +188,4 @@ def read_json(path: str | Path, default: Any) -> Any:
 def write_json(path: str | Path, payload: Any) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

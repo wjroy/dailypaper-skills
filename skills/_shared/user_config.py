@@ -179,10 +179,8 @@ def load_user_config() -> dict:
     config = copy.deepcopy(DEFAULT_CONFIG)
     config_dir = Path(__file__).resolve().parent
 
-    for filename in ("user-config.example.json", "user-config.local.json"):
-        config_path = config_dir / filename
-        if not config_path.exists():
-            continue
+    config_path = config_dir / "user-config.local.json"
+    if config_path.exists():
         with config_path.open("r", encoding="utf-8") as f:
             loaded = json.load(f)
         if isinstance(loaded, dict):
@@ -196,6 +194,30 @@ def load_user_config() -> dict:
 
 def _expand(path_value: str) -> Path:
     return Path(path_value).expanduser()
+
+
+def example_user_config_path() -> Path:
+    return Path(__file__).resolve().parent / "user-config.example.json"
+
+
+def local_user_config_path() -> Path:
+    return Path(__file__).resolve().parent / "user-config.local.json"
+
+
+def local_user_config_exists() -> bool:
+    return local_user_config_path().exists()
+
+
+def load_example_user_config() -> dict:
+    config_path = example_user_config_path()
+    if not config_path.exists():
+        return {}
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            loaded = json.load(f)
+    except Exception:
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
 
 
 def paths_config() -> dict:

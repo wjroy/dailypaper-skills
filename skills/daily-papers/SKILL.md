@@ -1,12 +1,14 @@
 ---
 name: daily-papers
 description: |
-  每日论文推荐的总入口。用户说“今日论文推荐”“过去3天论文推荐”
-  “过去一周论文推荐”“最近3天论文”“看看这周有啥论文”时使用。
+  每日论文推荐的总入口。用户说"今日论文推荐""过去3天论文推荐"
+  "过去一周论文推荐""最近3天论文""看看这周有啥论文"时使用。
 
   这是唯一公开的推荐 skill。抓取、rich review、notes 等都是内部阶段，
   不再作为独立 skill 暴露。
 ---
+
+> 开始前先简单打招呼。对用户只展示必要状态，不暴露内部流水线细节。
 
 # 每日论文推荐
 
@@ -16,31 +18,123 @@ description: |
 - `过去3天论文推荐`
 - `过去一周论文推荐`
 
-## 执行原则
+## 核心原则
 
-1. 先识别时间范围。
+1. 主任务是：发现论文 -> 生成推荐页 -> 尽可能补充 must_read 笔记。
+2. 推荐页必须优先产出，不能被任何单一子环节阻断。
+3. 内部流水线细节（通道名、检查点、临时文件、状态 JSON）不暴露给用户。
+4. 面向用户的输出只关注：推荐了哪些论文、哪些有笔记、哪些需要补充。
+
+## 执行流程
+
+1. 识别时间范围。
 2. 调用 `skills/daily-papers/orchestration/run_daily_pipeline.py`。
-3. 如果返回 `awaiting_published_pdf_import`：
-   - 明确告诉用户这是预期暂停点
-   - 告知 Zotero 导入文件路径
-   - 告知恢复命令：`python skills/daily-papers/state/resume_published.py`
-4. 用户完成 PDF 下载后，调用 `python skills/daily-papers/state/resume_published.py` 继续。
-5. 完成后汇报：
-   - 推荐文件位置
-   - 生成了多少篇 must-read 笔记
-   - 目录页是否已刷新
+3. 根据返回状态分支处理（见下方"结果处理"）。
 
-## 内部资源
+## 结果处理
 
-以下内容都属于 `daily-papers` 内部阶段资源：
+### 情况 A：完整完成
+
+pipeline 返回 `status: ok` 或 `status: partial`。
+
+向用户汇报：
+- 推荐页文件位置
+- 推荐了多少篇论文，各级别数量
+- 进入 notes stage（见下方"笔记生成"）
+
+### 情况 B：部分来源暂不可用
+
+pipeline 返回 `status: awaiting_published_pdf_import`。
+
+这意味着已发表论文来源需要补充本地 PDF 才能做深度评审，但预印本来源已完成。
+
+对用户的处理：
+1. **不要告知内部检查点名称、状态文件路径或恢复脚本命令。**
+2. 先确认 pipeline 是否已生成 interim 推荐页。如果有，告知用户当前已有一份包含预印本推荐的初步结果。
+3. 将需要补齐 PDF 的论文列表整理成用户可读的简洁清单（标题 + DOI/链接）。
+4. 告诉用户：
+   - "以下已发表论文需要补充本地 PDF 后才能做深度分析"
+   - "补齐 PDF 后，重新运行「今日论文推荐」即可自动补全"
+5. 当前可用的推荐结果（预印本部分）正常展示，不因为已发表通道暂停而丢弃。
+6. 进入 notes stage，为当前已完成评审的 must_read 论文尽力生成笔记。
+
+### 情况 C：数据源完全不可用
+
+如果两个来源都失败（如网络问题、配置缺失），向用户简洁说明失败原因和建议操作，不暴露内部模块名。
+
+## 笔记生成（Notes Stage）
+
+笔记生成是"尽力而为"阶段，不是必须全部完成才算成功。
+
+### 规则
+
+1. 从 merged 结果或当前可用结果中筛选 `must_read` 论文。
+2. 逐篇调用 `paper-reader` 生成研究笔记。
+3. **paper-reader 子流程隔离**：
+   - 单篇 paper-reader 调用失败不阻断其他论文的笔记生成。
+   - 单篇 paper-reader 调用失败不阻断推荐页的最终输出。
+   - 如果 paper-reader 因图像增强问题降级到纯文本，照常接受其输出。
+4. 成功生成笔记的论文，回填推荐页中的笔记链接。
+5. 未能生成笔记的论文，在推荐页标记"笔记待生成"。
+
+### 调用 paper-reader 的注意事项
+
+- 传入 `RichReviewPaperRecord` 字段供 paper-reader 路由全文来源。
+- paper-reader 自行处理图像增强降级，daily-papers 不干预。
+- 设置合理超时，单篇生成超时则跳过并标记。
+
+### 质量检查
+
+参照 `references/notes-stage-guide.md` 中的最低质量标准。
+笔记正文完整即为通过，不因图像缺失而判定失败。
+
+## 索引刷新
+
+笔记生成完成后，如果 `AUTO_REFRESH_INDEXES=true`，自动调用共享 MOC 生成器刷新目录页。
+索引刷新失败不影响推荐页和笔记的最终产物。
+
+## 最终汇报
+
+向用户只汇报：
+- 推荐页位置和论文总数
+- 各推荐级别的数量（必读 / 值得看 / 可跳过）
+- 生成了多少篇笔记、哪些论文有笔记链接
+- 目录页是否已刷新
+- 如有待补充项（如需要补 PDF 的已发表论文），给出简洁清单
+
+不要向用户暴露：
+- 内部 checkpoint / resume 机制
+- 状态 JSON 文件路径
+- 临时文件名（/tmp/*.json）
+- 内部脚本名和恢复命令
+- adapter / ranker / exporter 等模块名
+
+## 错误恢复规则
+
+以下降级规则必须显式执行，不依赖临场推理：
+
+| 故障场景 | 处理方式 |
+| --- | --- |
+| 已发表通道缺 PDF | 跳过深度评审，保留 metadata 级别评估，继续其余流程 |
+| 预印本通道失败 | 继续已发表通道，推荐页只包含已发表来源 |
+| 单个 enrich/rank/export 失败 | 保留其余结果继续 |
+| paper-reader 子流程失败 | 标记"笔记待生成"，继续其他论文 |
+| paper-reader 图像降级 | 照常接受纯文本笔记 |
+| 状态恢复失败 | 提示用户重新运行公开入口 |
+| 索引刷新失败 | 不影响推荐页和笔记产物 |
+| 缺少某一数据源 | 继续处理其他数据源 |
+
+## 内部资源（不面向用户）
+
+以下文件是内部实现，执行时参考但不向用户提及：
 
 - `references/notes-stage-guide.md`
 - `templates/lite_review_template.md`
 - `templates/rich_review_template.md`
-
-## 重要约束
-
-- 不要让用户手动分步跑“抓取 / 点评 / 笔记”。
-- 这些都是内部流程，不是首页主交互。
-- 只有在 `published_channel.auto_continue_without_pdf=true` 时，才允许跳过人工 PDF 检查点。
-- `daily-papers` 负责统一编排，`paper-reader` 只负责单篇阅读。
+- `orchestration/*.py`
+- `state/*.py`
+- `adapters/*.py`
+- `enrich/*.py`
+- `ranking/*.py`
+- `merge/*.py`
+- `render/*.py`

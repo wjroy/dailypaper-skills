@@ -23,38 +23,51 @@ for p in (STATE_DIR, SHARED_DIR):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from pipeline_state import load_state, save_state, utc_now_iso
+from pipeline_state import load_state, save_state, utc_now_iso, clear_state
 from user_config import active_domain, published_channel_config
 
 
 def _run(script_path: Path) -> dict[str, Any]:
-    proc = subprocess.run(
-        [sys.executable, str(script_path)], check=False, capture_output=True, text=True
-    )
-    output = (proc.stdout or "").strip()
+    """Run a subprocess, never raising on failure."""
     try:
-        payload: dict[str, Any] = json.loads(output) if output else {}
-    except Exception:
-        payload = {"raw_output": output}
-    payload["returncode"] = proc.returncode
-    return payload
+        proc = subprocess.run(
+            [sys.executable, str(script_path)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        output = (proc.stdout or "").strip()
+        try:
+            payload: dict[str, Any] = json.loads(output) if output else {}
+        except Exception:
+            payload = {"raw_output": output}
+        payload["returncode"] = proc.returncode
+        if proc.returncode != 0 and proc.stderr:
+            payload["stderr_summary"] = proc.stderr.strip()[:500]
+        return payload
+    except Exception as exc:
+        return {"returncode": -1, "error": str(exc)}
 
 
 def _run_renderer(mode: str) -> dict[str, Any]:
+    """Run the recommendation renderer, never raising on failure."""
     script = RENDER_DIR / "render_daily_recommendation.py"
-    proc = subprocess.run(
-        [sys.executable, str(script), "--mode", mode],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    output = (proc.stdout or "").strip()
     try:
-        payload: dict[str, Any] = json.loads(output) if output else {}
-    except Exception:
-        payload = {"raw_output": output}
-    payload["returncode"] = proc.returncode
-    return payload
+        proc = subprocess.run(
+            [sys.executable, str(script), "--mode", mode],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        output = (proc.stdout or "").strip()
+        try:
+            payload: dict[str, Any] = json.loads(output) if output else {}
+        except Exception:
+            payload = {"raw_output": output}
+        payload["returncode"] = proc.returncode
+        return payload
+    except Exception as exc:
+        return {"returncode": -1, "error": str(exc)}
 
 
 def _has_pdf_inputs() -> bool:
@@ -79,108 +92,171 @@ def _has_pdf_inputs() -> bool:
     return False
 
 
+def _load_pdf_candidates_summary() -> list[dict]:
+    """Load a brief summary of papers waiting for PDF, for user-facing output."""
+    candidates_path = TMP_DIR / "published_pdf_candidates_20.json"
+    if not candidates_path.exists():
+        return []
+    try:
+        items = json.loads(candidates_path.read_text(encoding="utf-8"))
+        if not isinstance(items, list):
+            return []
+        return [
+            {
+                "title": item.get("title", "(untitled)"),
+                "doi": item.get("doi", ""),
+                "url": item.get("url", ""),
+            }
+            for item in items[:20]
+            if isinstance(item, dict)
+        ]
+    except Exception:
+        return []
+
+
 def run() -> dict:
     state = load_state()
-    if state.get("stage") == "awaiting_published_pdf_import":
-        return {
-            "status": "paused",
-            "message": "Pipeline is waiting for manual PDF import in Zotero. Run resume command after PDFs are ready.",
-            "state": state,
-        }
 
+    # If previous run left a checkpoint AND PDF inputs are now available, auto-resume
+    if state.get("stage") == "awaiting_published_pdf_import":
+        if _has_pdf_inputs():
+            # Auto-resume: PDFs are now available, continue the pipeline
+            clear_state()
+            # Fall through to normal pipeline execution
+        else:
+            # Still no PDFs. But instead of blocking, re-run the pipeline.
+            # The logic below will handle the PDF absence gracefully by
+            # producing an interim recommendation from available data.
+            clear_state()
+
+    # --- Run both channels independently ---
     published_front = _run(CURRENT_DIR / "run_published_channel.py")
     preprint = _run(CURRENT_DIR / "run_preprint_channel.py")
 
+    published_front_ok = (
+        isinstance(published_front, dict) and published_front.get("returncode") == 0
+    )
+    preprint_ok = isinstance(preprint, dict) and preprint.get("returncode") == 0
+
+    # --- Determine whether Published rich review can proceed ---
     auto_continue = bool(
         published_channel_config().get("auto_continue_without_pdf", False)
     )
     pdf_inputs_ready = _has_pdf_inputs()
-    if not auto_continue and not pdf_inputs_ready:
-        zotero_files = (
-            published_front.get("zotero_handoff", {}).get("files", {})
-            if isinstance(published_front, dict)
-            else {}
-        )
+    published_needs_pdf = not auto_continue and not pdf_inputs_ready
+
+    published_rich = {
+        "returncode": -1,
+        "skipped": True,
+        "reason": "published_pdf_not_available",
+    }
+    if not published_needs_pdf and published_front_ok:
+        published_rich = _run(CURRENT_DIR / "run_published_rich_channel.py")
+
+    # --- Merge whatever is available ---
+    merged = _run(MERGE_DIR / "merge_reviewed_papers.py")
+
+    # --- Render the best possible recommendation page ---
+    if published_needs_pdf:
+        # Render interim (preprint-only rich + published lite) as the primary output
+        recommendation = _run_renderer("interim")
+        render_mode = "interim"
+    else:
+        recommendation = _run_renderer("final")
+        render_mode = "final"
+
+    # --- Build user-facing result ---
+    completed_steps = []
+    skipped_steps = []
+    failed_steps = []
+
+    if preprint_ok:
+        completed_steps.append("preprint_discovery")
+    elif isinstance(preprint, dict) and preprint.get("returncode") != 0:
+        failed_steps.append("preprint_discovery")
+
+    if published_front_ok:
+        completed_steps.append("published_discovery")
+    elif isinstance(published_front, dict) and published_front.get("returncode") != 0:
+        failed_steps.append("published_discovery")
+
+    if published_needs_pdf:
+        skipped_steps.append("published_deep_review")
+    elif isinstance(published_rich, dict) and not published_rich.get("skipped"):
+        if published_rich.get("returncode") == 0:
+            completed_steps.append("published_deep_review")
+        else:
+            failed_steps.append("published_deep_review")
+
+    if isinstance(merged, dict) and merged.get("returncode") == 0:
+        completed_steps.append("merge")
+    elif isinstance(merged, dict) and merged.get("returncode") != 0:
+        failed_steps.append("merge")
+
+    if isinstance(recommendation, dict) and recommendation.get("returncode") == 0:
+        completed_steps.append("recommendation_page")
+
+    # Determine overall status
+    if not completed_steps:
+        status = "failed"
+    elif failed_steps or skipped_steps:
+        status = "partial"
+    else:
+        status = "ok"
+
+    # Build the pending_pdfs list only when relevant
+    pending_pdfs = []
+    if published_needs_pdf:
+        pending_pdfs = _load_pdf_candidates_summary()
+        # Save state for potential auto-resume on next run
         new_state = {
             "stage": "awaiting_published_pdf_import",
             "created_at": utc_now_iso(),
             "active_domain": active_domain(),
             "expected_pdf_count": int(published_channel_config().get("pdf_n", 20)),
             "auto_continue_without_pdf": auto_continue,
-            "zotero_export_files": zotero_files,
-            "published_pdf_candidates_path": "/tmp/published_pdf_candidates_20.json",
-            "preprint_completed": preprint.get("returncode") == 0,
-            "resume_command": "python skills/daily-papers/state/resume_published.py",
+            "preprint_completed": preprint_ok,
         }
         save_state(new_state)
-        return {
-            "status": "awaiting_published_pdf_import",
-            "steps": {
-                "published_front": published_front,
-                "preprint": preprint,
-                "recommendation_interim": _run_renderer("interim"),
-            },
-            "message": "Published channel paused for manual Zotero PDF retrieval. Import generated RIS/Bib/DOI files into Zotero, download PDFs, then run resume command.",
-            "state": new_state,
-            "outputs": {
-                "published_raw_200": "/tmp/published_raw_200.json",
-                "published_lite_50": "/tmp/published_lite_50.json",
-                "published_pdf_candidates_20": "/tmp/published_pdf_candidates_20.json",
-                "preprint_raw": "/tmp/preprint_raw.json",
-                "preprint_enriched": "/tmp/preprint_enriched.json",
-                "preprint_review_rich_20": "/tmp/preprint_review_rich_20.json",
-            },
-        }
-
-    published_rich = _run(CURRENT_DIR / "run_published_rich_channel.py")
-    merged = _run(MERGE_DIR / "merge_reviewed_papers.py")
-    recommendation_final = _run_renderer("final")
-
-    status = "ok"
-    if any(
-        step.get("returncode") != 0
-        for step in [
-            published_front,
-            preprint,
-            published_rich,
-            merged,
-            recommendation_final,
-        ]
-    ):
-        status = "partial"
 
     notes: list[str] = []
-    if auto_continue:
+    if auto_continue and not pdf_inputs_ready:
         notes.append(
-            "auto_continue_without_pdf=true: Published rich may have low extraction confidence when local PDFs are missing."
+            "Published deep review ran without local PDFs; extraction confidence may be lower."
         )
-    elif pdf_inputs_ready:
+    if published_needs_pdf and preprint_ok:
         notes.append(
-            "Detected /tmp/published_pdf_inputs.json with local PDF mappings; continued without pause."
+            "Preprint results are complete. Published papers need local PDFs for deep analysis. "
+            "Rerun after adding PDFs to continue."
         )
 
-    return {
+    result: dict[str, Any] = {
         "status": status,
-        "steps": {
-            "published_front": published_front,
-            "preprint": preprint,
-            "published_rich": published_rich,
-            "merge": merged,
-            "recommendation_final": recommendation_final,
-        },
+        "render_mode": render_mode,
+        "completed_steps": completed_steps,
+        "skipped_steps": skipped_steps,
+        "failed_steps": failed_steps,
         "notes": notes,
-        "outputs": {
-            "published_raw_200": "/tmp/published_raw_200.json",
-            "published_lite_50": "/tmp/published_lite_50.json",
-            "published_pdf_candidates_20": "/tmp/published_pdf_candidates_20.json",
-            "published_enriched_20": "/tmp/published_enriched_20.json",
-            "published_review_rich_20": "/tmp/published_review_rich_20.json",
-            "preprint_raw": "/tmp/preprint_raw.json",
-            "preprint_enriched": "/tmp/preprint_enriched.json",
-            "preprint_review_rich_20": "/tmp/preprint_review_rich_20.json",
-            "daily_review_merged": "/tmp/daily_review_merged.json",
-        },
+        "recommendation_output": recommendation.get("output", ""),
+        "recommendation_counts": recommendation.get("counts", {}),
     }
+
+    if pending_pdfs:
+        result["pending_published_pdfs"] = pending_pdfs
+        result["pending_pdf_action"] = (
+            "Add these PDFs to your local library, then rerun the daily recommendation."
+        )
+
+    # Internal debug info (for logging, not user-facing)
+    result["_internal"] = {
+        "published_front": published_front,
+        "preprint": preprint,
+        "published_rich": published_rich,
+        "merge": merged,
+        "recommendation": recommendation,
+    }
+
+    return result
 
 
 if __name__ == "__main__":

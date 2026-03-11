@@ -251,6 +251,8 @@ def _resolve_thumbnail(item: dict) -> str | None:
         return None
 
     manifest = _figure_manifest(item)
+    if str(manifest.get("image_mode", "")).lower() == "text_only":
+        return None
     figures = list(manifest.get("figures", [])) if isinstance(manifest, dict) else []
     if figures:
         preferred = _choose_manifest_figure(figures, prefer_results=False)
@@ -282,6 +284,8 @@ def _resolve_thumbnail(item: dict) -> str | None:
 
 def _image_coverage_summary(item: dict) -> str:
     manifest = _figure_manifest(item)
+    if str(manifest.get("image_mode", "")).lower() == "text_only":
+        return "未提取（text-only）"
     figures = list(manifest.get("figures", [])) if isinstance(manifest, dict) else []
     if figures:
         has_method = any(

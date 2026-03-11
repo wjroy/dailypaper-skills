@@ -1,73 +1,101 @@
 ---
 name: generate-mocs
 description: |
-  重新生成 Obsidian 里的目录页 / 导航页（MOC）。
-  当用户说“更新索引”“更新论文和概念目录”“刷新论文和概念目录”“刷新MOC”时使用。
+  刷新 Obsidian 里的论文目录页和概念目录页。
+  当用户说"更新索引""刷新目录""更新论文和概念目录""刷新MOC"时使用。
 ---
 
-# 更新目录页
+> 对用户只展示刷新结果摘要，不暴露内部脚本名或共享模块结构。
 
-这个 skill 用于手动补刷 Obsidian 里的目录页 / 导航页（MOC）。
+# 刷新索引
 
-## Step 0: 读取共享配置
+这是更新 Obsidian 目录页（论文目录页 + 概念目录页）的统一入口。
 
-先读取 `../_shared/user-config.example.json`，如果 `../_shared/user-config.local.json` 存在，再用它覆盖默认值。
+用户只需要一句：
 
-显式生成并在后续统一使用这些变量：
+- `更新索引`
+- `刷新目录`
 
-- `VAULT_PATH`
-- `NOTES_PATH`
-- `CONCEPTS_PATH`
-- `AUTO_REFRESH_INDEXES`
-- `GIT_COMMIT_ENABLED`
-- `GIT_PUSH_ENABLED`
+## 核心原则
 
-其中：
+1. 对用户来说，这是"刷新索引"的单一动作，不是"分别运行两个脚本"。
+2. 论文目录页和概念目录页独立刷新：一个失败不阻断另一个。
+3. 配置缺失时尽量进入部分刷新模式，而不是完全失败。
+4. 面向用户的输出只说明结果，不暴露内部脚本名和实现细节。
 
-- `NOTES_PATH = {VAULT_PATH}/{paper_notes_folder}`
-- `CONCEPTS_PATH = {NOTES_PATH}/{concepts_folder}`
-- `GIT_PUSH_ENABLED` 只有在 `GIT_COMMIT_ENABLED=true` 时才可能为真
+## 执行流程
 
-后续步骤统一使用上面的变量。
+### Step 1：加载配置
 
-## 执行步骤
+读取共享配置获取必要路径。如果本地配置不存在，使用内置默认值继续。
 
-1. 运行概念目录页脚本：
+需要的路径变量：
+- `VAULT_PATH`：Obsidian 库根目录
+- `NOTES_PATH`：论文笔记目录
+- `CONCEPTS_PATH`：概念笔记目录
+
+如果 `VAULT_PATH` 不存在，向用户简洁说明需要先配置 Obsidian 库路径，不暴露配置文件内部结构。
+
+### Step 2：刷新概念目录页
+
+运行概念目录页生成：
 
 ```bash
-python3 ../_shared/generate_concept_mocs.py
+python3 skills/_shared/generate_concept_mocs.py
 ```
 
-2. 运行论文目录页脚本：
+- 成功：记录刷新结果（扫描目录数、新建/更新页数）
+- 失败：记录失败原因，继续执行下一步
+
+### Step 3：刷新论文目录页
+
+运行论文目录页生成：
 
 ```bash
-python3 ../_shared/generate_paper_mocs.py
+python3 skills/_shared/generate_paper_mocs.py
 ```
 
-3. 汇报：
-   - 扫描了多少个目录
-   - 新建 / 更新了多少个目录页
-   - 目录页文件写到了哪里
+- 成功：记录刷新结果
+- 失败：记录失败原因
 
-## git 自动化
+### Step 4：Git 自动化（可选）
 
-默认配置下：
+只有在配置中同时满足以下条件时才执行：
+- `GIT_COMMIT_ENABLED=true`
+- `VAULT_PATH/.git` 存在
+- `git add` 后确实有 staged changes
 
-- `AUTO_REFRESH_INDEXES=true`
-- `GIT_COMMIT_ENABLED=false`
-- `GIT_PUSH_ENABLED=false`
+`GIT_PUSH_ENABLED` 只有在 `GIT_COMMIT_ENABLED=true` 且仓库已配置远端时才生效。
 
-只有在 `GIT_COMMIT_ENABLED=true` 时才做 git 操作，并且必须先检查：
+默认不执行 git 操作。
 
-1. `VAULT_PATH/.git` 是否存在
-2. `git add` 之后是否真的有 staged changes
+## 向用户汇报
 
-只有在上面两项都满足时才 commit。
+只说明：
+- 索引已刷新（或部分刷新）
+- 刷新了哪些目录页、更新了多少页
+- 哪些部分跳过或失败（如有）
 
-只有在 `GIT_PUSH_ENABLED=true` 且仓库已配置远端时才 push。
+不要向用户暴露：
+- 内部脚本文件名
+- 共享模块路径
+- 具体生成器实现细节
+- 配置加载过程
+
+## 错误恢复规则
+
+以下降级规则必须显式执行：
+
+| 故障场景 | 处理方式 |
+| --- | --- |
+| 概念目录页刷新失败 | 继续刷新论文目录页，最终说明概念部分未完成 |
+| 论文目录页刷新失败 | 如果概念目录页已成功，报告部分完成 |
+| 输出目录不存在 | 尝试自动创建；无法创建时给出简洁错误说明 |
+| 配置缺失 | 使用内置默认值继续；关键路径缺失时简洁提示 |
+| 两个生成器都失败 | 向用户简洁说明失败原因和建议操作 |
 
 ## 结果要求
 
-- 目录页生成逻辑必须来自仓库自带脚本，不依赖 `VAULT_PATH/scripts/*`
-- 重复运行应保持幂等
-- 用户手动运行这个 skill 时，不受 `AUTO_REFRESH_INDEXES` 开关影响
+- 目录页生成逻辑来自仓库自带脚本，不依赖外部脚本
+- 重复运行保持幂等
+- 用户手动运行时，不受 `AUTO_REFRESH_INDEXES` 开关影响

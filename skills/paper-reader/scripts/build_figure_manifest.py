@@ -23,14 +23,10 @@ from _figure_common import (
 )
 
 
-def enrich_record(
-    record: dict, pages: list[str], figures_dir: Path, sequence: int
-) -> dict:
+def enrich_record(record: dict, pages: list[str], figures_dir: Path, sequence: int) -> dict:
     page_number = int(record.get("page_number", 0) or 0)
     page_text = pages[page_number - 1] if 0 < page_number <= len(pages) else ""
-    caption_snippet = record.get("caption_snippet", "") or extract_caption_snippet(
-        page_text
-    )
+    caption_snippet = record.get("caption_snippet", "") or extract_caption_snippet(page_text)
     role = record.get("estimated_role", "unknown")
     if not role or role == "unknown":
         role = estimate_role(caption_snippet, page_text, record.get("filename", ""))
@@ -39,23 +35,22 @@ def enrich_record(
     figure_path = figures_dir / filename
     width = int(record.get("width", 0) or 0)
     height = int(record.get("height", 0) or 0)
-    if figure_path.exists():
+    if figure_path.exists() and figure_path.suffix.lower() == ".png":
         width, height = png_dimensions(figure_path)
 
     source_type = record.get("source_type", "unknown")
     role_slug = slugify(role, default="unknown")
-    if figure_path.exists():
+    if figure_path.exists() and figure_path.suffix.lower() == ".png":
         if source_type == "embedded":
             new_filename = f"fig_{role_slug}_p{page_number:02d}_{sequence:02d}.png"
         else:
-            new_filename = (
-                f"fig_{role_slug}_fullpage_p{page_number:02d}_{sequence:02d}.png"
-            )
+            new_filename = f"fig_{role_slug}_fullpage_p{page_number:02d}_{sequence:02d}.png"
         new_path = figures_dir / new_filename
         if new_path != figure_path:
             figure_path.replace(new_path)
             figure_path = new_path
         filename = new_filename
+
     return {
         "source_pdf": record.get("source_pdf", ""),
         "page_number": page_number,
@@ -72,6 +67,18 @@ def enrich_record(
     }
 
 
+def _recommended_figure_types() -> list[str]:
+    return ["方法框架图", "模型结构图", "主结果图"]
+
+
+def _image_mode(records: list[dict], rendered_count: int) -> str:
+    if not records:
+        return "text_only"
+    if rendered_count:
+        return "page_fallback"
+    return "full"
+
+
 def build_manifest(pdf_path: Path, paper_id: str) -> dict:
     figures_dir = figures_dir_for_paper(paper_id)
     embedded = read_json(figures_dir / "embedded_figures.json", {"records": []})
@@ -79,26 +86,24 @@ def build_manifest(pdf_path: Path, paper_id: str) -> dict:
     pages = pdftotext_pages(pdf_path)
 
     all_records = []
-    for index, record in enumerate(
-        list(embedded.get("records", [])) + list(rendered.get("records", [])), start=1
-    ):
+    for index, record in enumerate(list(embedded.get("records", [])) + list(rendered.get("records", [])), start=1):
         enriched = enrich_record(record, pages, figures_dir, index)
         if enriched["filename"]:
             all_records.append(enriched)
 
-    method_framework_count = sum(
-        1 for item in all_records if item["estimated_role"] in {"framework", "method"}
-    )
+    method_framework_count = sum(1 for item in all_records if item["estimated_role"] in {"framework", "method"})
     result_count = sum(1 for item in all_records if item["estimated_role"] == "result")
-
+    rendered_count = len(rendered.get("records", []))
     manifest = {
         "paper_id": paper_id,
         "pdf_path": str(pdf_path),
         "figures_dir": str(figures_dir),
+        "image_mode": _image_mode(all_records, rendered_count),
         "figures": all_records,
+        "recommended_figure_types": _recommended_figure_types(),
         "stats": {
             "embedded_figures_extracted": len(embedded.get("records", [])),
-            "rendered_fallback_pages": len(rendered.get("records", [])),
+            "rendered_fallback_pages": rendered_count,
             "total_candidate_figures": len(all_records),
             "key_method_framework_figures": method_framework_count,
             "key_result_figures": result_count,
@@ -108,19 +113,18 @@ def build_manifest(pdf_path: Path, paper_id: str) -> dict:
             "triggered": bool(rendered.get("fallback_triggered", False)),
             "reasons": list(rendered.get("fallback_reasons", [])),
         },
+        "backends": {
+            "embedded": embedded.get("backend", "none"),
+            "rendered": rendered.get("backend", "none"),
+        },
+        "messages": [
+            message
+            for message in [embedded.get("message", ""), rendered.get("message", "")]
+            if message
+        ],
     }
     manifest_path = manifest_path_for_paper(paper_id)
     write_json(manifest_path, manifest)
-    print(
-        f"embedded figures extracted: {manifest['stats']['embedded_figures_extracted']}"
-    )
-    print(f"rendered fallback pages: {manifest['stats']['rendered_fallback_pages']}")
-    print(f"total candidate figures: {manifest['stats']['total_candidate_figures']}")
-    print(
-        f"key method/framework figures: {manifest['stats']['key_method_framework_figures']}"
-    )
-    print(f"key result figures: {manifest['stats']['key_result_figures']}")
-    print(f"figure manifest saved to: {manifest_path}")
     return manifest
 
 
@@ -131,7 +135,8 @@ def main() -> None:
     args = parser.parse_args()
     pdf_path = Path(args.pdf_path).expanduser().resolve()
     paper_id = paper_id_from_inputs(args.paper_id, pdf_path)
-    build_manifest(pdf_path, paper_id)
+    manifest = build_manifest(pdf_path, paper_id)
+    print(f"figure manifest saved to: {manifest_path_for_paper(paper_id)} ({manifest['image_mode']})")
 
 
 if __name__ == "__main__":

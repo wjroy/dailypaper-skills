@@ -11,29 +11,43 @@ context: fork
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, WebFetch, WebSearch
 ---
 
-> 开始前先简单打招呼。
+> 开始前先简单打招呼。对用户只展示必要状态，不展示工程排障细节。
 
 # Paper Reader
 
-这是仓库里唯一的论文阅读入口，输出直接服务 Obsidian。
+这是仓库里唯一的论文阅读入口。默认目标是先稳定产出研究笔记，再按可用性补充轻量图像增强。
 
-## Step 0: 读取共享配置
+## 核心原则
 
-先读取 `../_shared/user-config.example.json`，如果 `../_shared/user-config.local.json` 存在，再覆盖默认值。
+1. 文本研究笔记永远优先，不能被图像初始化、依赖检查或配置缺失阻断。
+2. 图像增强是 optional enhancement，不是主流程门槛。
+3. 首次图像初始化只问一次；不配置也照常输出本次研究笔记。
+4. 初始化结果写入 `paper-reader.state.json`，后续不重复追问。
+5. 任意图像步骤失败都自动降级到纯文本或轻量页级模式。
+6. 面向用户的输出保持清洁，不暴露路径探索、依赖排查、脚本调用链和安装日志。
 
-统一使用这些变量：
+## 0. 配置与状态
 
-- `VAULT_PATH`
-- `NOTES_PATH`
-- `CONCEPTS_PATH`
-- `ZOTERO_DB`
-- `ZOTERO_STORAGE`
-- `ACTIVE_DOMAIN`
-- `AUTO_REFRESH_INDEXES`
-- `GIT_COMMIT_ENABLED`
-- `GIT_PUSH_ENABLED`
+### 共享配置
 
-## 1. 接收输入
+- 运行时只读取 `skills/_shared/user-config.local.json`
+- `skills/_shared/user-config.example.json` 仅作字段示例，不能当真实配置
+
+### paper-reader 专属配置
+
+- 示例配置：`skills/paper-reader/paper-reader.config.example.json`
+- 本地配置：`skills/paper-reader/paper-reader.local.json`
+- 运行状态：`skills/paper-reader/paper-reader.state.json`
+
+### 临时模式
+
+如果 `paper-reader.local.json` 不存在：
+
+- 自动进入 temporary mode
+- 输出可以直接回到对话中，也可以临时写到 `skills/paper-reader/.temp-output/`
+- 绝不能因此中断论文阅读
+
+## 1. 识别输入论文来源
 
 ### 1a. 来自 daily-papers 内部 notes stage
 
@@ -41,9 +55,9 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, WebFetch, WebSearch
 
 | 类型 | 处理方式 |
 | --- | --- |
-| `arxiv_url` | WebFetch `preferred_fulltext_input_value` |
-| `local_pdf` | Read 本地 PDF |
-| `pdf_url` | WebFetch PDF URL |
+| `local_pdf` | 优先读取本地 PDF |
+| `arxiv_url` | WebFetch arXiv 页面，并尽量转 PDF 或正文 |
+| `pdf_url` | 下载或读取 PDF URL |
 | 其他 / 空 | 回退到手动输入流程 |
 
 可参考字段：`local_pdf_paths`、`figure_captions`、`preferred_fulltext_input_value`。
@@ -53,198 +67,212 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, WebFetch, WebSearch
 | 输入方式 | 示例 | 处理方法 |
 | --- | --- | --- |
 | 本地 PDF | `/path/to/paper.pdf` | 直接读取 PDF |
-| arXiv 链接 | `https://arxiv.org/abs/2509.24527` | 优先下载 PDF 并进入强制提图流程 |
-| Zotero 单条目 | `读一下 Zotero 里的 Diffusion Policy` | 搜索单篇并定位附件 |
-| Zotero 分类 | `批量读一下 Zotero 里 机器人 这个分类下的论文` | 先定位分类，再逐篇按同一模板生成 |
+| 上传 PDF | 用户附带 PDF | 直接读取 PDF |
+| arXiv 链接 | `https://arxiv.org/abs/2509.24527` | 优先获取 PDF 或 HTML 正文 |
+| Zotero 单条目 | `读一下 Zotero 里的 Diffusion Policy` | 搜索条目并定位 PDF |
+| Zotero 分类 | `批量读一下 Zotero 里 机器人 这个分类下的论文` | 逐篇读取并按统一模板生成 |
 | 结构化 payload | 标题 + URL + PDF 路径 | 按给定字段路由 |
 
 如果 Zotero 条目没有 PDF：
 
 1. 先查 PDF URL / arXiv PDF
 2. 再查 DOI / 期刊页
-3. 找不到就明确说明缺失，不要伪造全文细节
+3. 找不到就诚实降级，只基于 metadata 或摘要写有限笔记，不伪造全文细节
 
-分类和条目查询见 `references/zotero-guide.md`。
+## 2. 文本主流程（必须先完成）
 
-## 2. 强制图像提取流程
+先做文本，不要先跑 figure pipeline。
 
-Figure extraction is mandatory before note writing.
+### 2a. 元数据提取
 
-流程必须按下面四个阶段执行，没完成 manifest 不进入最终笔记写作：
+尽量提取：
 
-1. `scripts/extract_embedded_figures.py`
-2. `scripts/render_figure_pages.py`
-3. `scripts/build_figure_manifest.py`
-4. `scripts/link_figures_to_note.py`
+- 标题
+- 作者
+- 年份
+- 来源 / 期刊 / 会议
+- DOI / URL / arXiv ID
 
-正常执行时，优先直接调用：`scripts/run_figure_pipeline.py`
+### 2b. 正文解析
 
-### 强制规则
+- 优先使用稳定文本来源完成正文阅读
+- 能读 PDF 就读 PDF；PDF 文本层差时尽量利用 metadata、摘要、章节标题和可见正文
+- 不要因为图像后端未配置就暂停文本阅读
 
-1. Figure extraction is mandatory before note writing.
-2. The agent must not rely on a single extraction path.
-3. The extraction policy is recall-first.
-4. Prefer over-inclusion to omission.
-5. If key method figures or key result figures are incomplete after embedded extraction, fallback rendering must run automatically.
-6. If vector/composite figures cannot be cleanly extracted, preserve full-page renderings instead of skipping them.
-7. The note must contain both `关键图示 (Key Figures)` and `全部候选图 (All Candidate Figures)`.
+### 2c. 研究笔记生成
 
-### Stage A: embedded image extraction
+默认产出 canonical research note，至少覆盖：
 
-- 从 PDF 中提取嵌入式图片对象
-- 输出到 `assets/papers/<paper_id>/figures/`
-- 记录 `embedded_figures.json`
+推荐主入口：
 
-### Stage B: rendered-page fallback
-
-- 扫描带有 `Figure` / `Fig.` / `framework` / `method` / `experiment` / `results` 等关键词的页面
-- 如果 embedded 结果偏少、方法图缺失、结果图缺失、或 figure-like 页面明显更多，自动整页渲染
-- 无法稳定裁剪时保留整页 PNG 作为兜底
-
-### Stage C: figure manifest construction
-
-- 生成 `figure_manifest.json`
-- 记录页码、来源类型、文件名、caption、角色、是否进入关键图示、置信度
-- 后续笔记插图必须基于 manifest，而不是临时发挥
-
-### Stage D: note linking
-
-- 基于 manifest 自动写回笔记
-- 图片必须落在 vault 内，并使用稳定 wiki-link
-- 不允许写本机绝对路径
-
-## 3. 输出模式
-
-只保留两种：
-
-| 模式 | 触发词 | 输出 |
-| --- | --- | --- |
-| 快速摘要 | “快速看一下” | 3-5 句摘要 + 图像提取摘要 |
-| 研究笔记 | 默认 | 使用 canonical template 生成完整笔记 |
-
-如果用户说“批判性分析”，把批判内容写进 `Limitations` 和 `Inspiration for My Research`。
-
-## 4. 笔记生成
-
-唯一模板：`obsidian-templates/论文笔记模板.md`
-
-### 核心规则
-
-1. frontmatter 和 section 名必须与 canonical template 完全一致，不删字段、不改标题
-2. `关键图示 (Key Figures)` 和 `全部候选图 (All Candidate Figures)` 必须来自 figure manifest
-3. 不要写 ASCII 流程图
-4. 关键术语首次出现时尽量加 `[[概念]]` 链接
-5. 无法确认的结论明确降级表达，不要硬写成确定事实
-
-详细规则见 `references/quality-standards.md`。
-
-### 图像目录与引用
-
-- 图片统一保存到：`assets/papers/<paper_id>/figures/`
-- manifest 文件：`assets/papers/<paper_id>/figures/figure_manifest.json`
-- 笔记中的图片引用统一使用：`![[assets/papers/<paper_id>/figures/<filename>.png]]`
-- 若图片不存在，不插入坏链接；把缺失写进 manifest 和 `Missing Field Report`
-
-### 缺失字段报告
-
-任何无法稳定提取的内容都写进 `Missing Field Report`，例如：
-
-- only partial embedded figures were available; rendered pages were added as fallback
-- PDF mainly uses vector figures; full-page rendered fallbacks were preserved
-- 关键公式无法确认
-- 表格过长未完整抽取
-- 只有 metadata 没有全文
-
-## 5. 保存
-
-### 文件名
-
-优先使用方法名；不确定时使用标题缩写并放进 `_待整理/`。
-
-### 保存路径
-
-默认保存到：`{NOTES_PATH}/{zotero_collection_path 或 _待整理}/{文件名}.md`
-
-### frontmatter 最少字段
-
-```yaml
----
-title: "论文标题"
-authors: [Author1, Author2]
-year: 2025
-source: arXiv
-venue: ""
-doi: ""
-url: https://arxiv.org/abs/xxxx
-arxiv_id: xxxx
-zotero_collection: _待整理
-tags: [paper]
-domain: intelligent_construction
-image_source: vault_local
-extraction_confidence: 0.82
-created: YYYY-MM-DD
----
+```bash
+python skills/paper-reader/scripts/run_paper_reader.py <pdf_path>
+python skills/paper-reader/scripts/run_paper_reader.py --record-json <record_json>
 ```
-
-### section 列表
-
-输出顺序保持为：
 
 1. `Paper Snapshot`
 2. `One-Line Summary`
 3. `Research Problem`
 4. `Method Summary`
-5. `关键图示 (Key Figures)`
-6. `全部候选图 (All Candidate Figures)`
-7. `Key Formula`
-8. `Main Findings`
-9. `Notes on Data / Evaluation`
-10. `Limitations`
-11. `Inspiration for My Research`
-12. `Linked Concepts`
-13. `Missing Field Report`
-14. `Source Notes`
+5. `Key Formula`（或诚实说明缺失）
+6. `Main Findings`
+7. `Notes on Data / Evaluation`
+8. `Limitations`
+9. `Inspiration for My Research`
+10. `Linked Concepts`
+11. `Missing Field Report`
+12. `Source Notes`
 
-### 保存后
+研究笔记至少应回答：
 
-1. `AUTO_REFRESH_INDEXES=true` 时刷新 MOC
-2. `GIT_COMMIT_ENABLED=true` 时才允许 git add / commit
-3. `GIT_PUSH_ENABLED=true` 且已配置远端时才 push
+- 研究问题是什么
+- 核心方法是什么
+- 模型或算法框架是什么
+- 数据与实验设置是什么
+- 主要结果和创新点是什么
+- 局限性是什么
+- 对用户研究有什么借鉴意义
 
-## 6. 概念笔记
+## 3. 图像增强状态检测
 
-如果正文中已经写了 `[[概念]]`，就检查概念笔记是否存在；缺失时按 `references/concept-categories.md` 归类。
+文本笔记完成后，再决定是否补图。
 
-## 7. 日志要求
+### 3a. 读取状态
 
-处理一篇论文时，至少汇报：
+使用：
 
-- embedded figures extracted: X
-- rendered fallback pages: Y
-- total candidate figures: Z
-- key method/framework figures: A
-- key result figures: B
-- figure manifest saved to: ...
-- note linked with figures: yes/no
+```bash
+python skills/paper-reader/scripts/manage_image_enhancement.py status
+```
 
-## 8. 自检
+关注字段：
 
-- [ ] frontmatter 完整
-- [ ] `One-Line Summary` 已写
-- [ ] `Research Problem` 已写
-- [ ] `Method Summary` 已写
-- [ ] `关键图示 (Key Figures)` 已写
-- [ ] `全部候选图 (All Candidate Figures)` 已写
-- [ ] `Key Formula` 已写或在 `Missing Field Report` 中说明
-- [ ] `Main Findings` 已写
-- [ ] `Notes on Data / Evaluation` 已写
-- [ ] `Limitations` 已写
-- [ ] `Inspiration for My Research` 已写
-- [ ] `Linked Concepts` 已写
-- [ ] `Missing Field Report` 已写
-- [ ] `Source Notes` 已写
-- [ ] `figure_manifest.json` 已生成
-- [ ] `extraction_confidence` 已填写
+- `initialized`
+- `user_opt_in`
+- `image_backend`
+- `backend_ready`
+- `auto_setup_images`
+
+### 3b. 首次使用询问
+
+只有在 `user_opt_in == unknown` 时才允许询问，并且只能问一次简洁问题。推荐措辞：
+
+“检测到这是你首次使用论文图像增强功能。我可以做一次性初始化，后续可自动补充关键方法图和结果图。本次即使不配置，我也会先正常输出论文研究笔记。是否现在配置？”
+
+规则：
+
+1. 这句询问只在未知状态出现
+2. 明确说明“不配置也不影响本次研究笔记”
+3. 用户答应或拒绝后，立即缓存到 state
+4. 后续不再反复询问；除非用户显式要求 reset 或重新启用
+
+### 3c. 状态缓存命令
+
+```bash
+python skills/paper-reader/scripts/manage_image_enhancement.py initialize --choice yes
+python skills/paper-reader/scripts/manage_image_enhancement.py initialize --choice no
+python skills/paper-reader/scripts/manage_image_enhancement.py reset
+```
+
+初始化只做轻量检查与状态缓存，不做长时间环境安装，不修改用户系统环境。
+
+## 4. 图像增强执行策略
+
+只有当以下条件同时满足时才自动执行图像增强：
+
+1. `user_opt_in == yes`
+2. `backend_ready == true`
+
+执行入口：
+
+```bash
+python skills/paper-reader/scripts/run_paper_reader.py <pdf_path>
+python skills/paper-reader/scripts/run_figure_pipeline.py <pdf_path> --paper-id <paper_id> [--note-path <note_path>]
+```
+
+### 后端优先级
+
+1. `PyMuPDF`：默认首选，负责文本抽取、embedded image 枚举、页级渲染
+2. `poppler` 工具：`pdfimages` / `pdftoppm` / `pdftotext`，仅作可选增强后端
+3. `text_only`：任何后端不可用或失败时立即降级
+
+### 图像模式
+
+#### 模式 A：`full`
+
+- 提取到可用关键图
+- 研究笔记中补充图像状态摘要
+- 优先放 1 张方法/框架图和 1 张主结果图
+
+#### 模式 B：`page_fallback`
+
+- embedded extraction 不稳定时，保留关键页截图
+- 作为可接受降级，不要求脆弱裁剪
+
+#### 模式 C：`text_only`
+
+- 图像完全不可用时，写入简洁占位状态
+- 至少注明：`图像覆盖：未提取` 和建议关注图类型
+
+## 5. 错误处理与自动降级
+
+以下规则必须显式执行：
+
+1. 配置文件不存在 -> 进入 temporary mode，继续文本笔记
+2. 示例配置存在但本地配置不存在 -> 只把 example 当参考，不当真实配置
+3. 图像后端未安装 -> 跳过图像增强，继续文本主流程
+4. 图像初始化失败 -> 记录 state，结束初始化，不阻断本次阅读
+5. 外部命令不存在 -> 捕获异常，回退到 PyMuPDF 或 `text_only`
+6. PDF 图像提取失败 -> 只输出简短图像状态，不报致命错误
+7. 中文路径或编码异常 -> 优先使用 Python 路径处理；失败时继续文本模式
+8. 任意单步失败 -> 不能让用户最终拿不到研究笔记
+
+## 6. 输出模式
+
+| 模式 | 触发词 | 输出 |
+| --- | --- | --- |
+| 快速摘要 | “快速看一下” | 3-5 句摘要 + 一行图像状态 |
+| 研究笔记 | 默认 | 使用 canonical template 生成完整笔记 |
+
+如果用户说“批判性分析”，把批判内容重点写进 `Limitations` 和 `Inspiration for My Research`。
+
+## 7. 用户可见输出规范
+
+最终面向用户只保留：
+
+- 必要的一两行状态提示
+- 高质量研究笔记
+- 可选的图像状态摘要 / 关键图说明
+
+不要向用户暴露以下工程噪音：
+
+- 共享配置读取过程
+- 脚本路径探索
+- PATH / poppler / conda 排障细节
+- figure pipeline 的内部阶段日志
+- 内部函数调用过程
+
+## 8. 保存与落盘
+
+### 路径策略
+
+- 已配置时：按 `paper-reader.local.json` 写入用户输出目录
+- 未配置时：允许只在对话中返回，或写入 `skills/paper-reader/.temp-output/`
+
+### 图像落盘规则
+
+- 图片目录：`assets/papers/<paper_id>/figures/`
+- manifest：`assets/papers/<paper_id>/figures/figure_manifest.json`
+- 笔记引用：`![[assets/papers/<paper_id>/figures/<filename>.png]]`
+- 图片缺失时不插入坏链接，而是写占位状态
+
+## 9. 自检
+
+- [ ] 文本研究笔记已完成
+- [ ] 即使没有图像能力，主笔记仍然成立
+- [ ] 若图像增强已启用，状态已缓存且只做轻量补充
+- [ ] 若图像增强失败，已自动降级且未阻断主任务
+- [ ] 用户输出未混入调试噪音
 
 ## 参考文件
 

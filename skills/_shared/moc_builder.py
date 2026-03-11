@@ -15,9 +15,10 @@ class MOCSummary:
     updated_files: int = 0
     unchanged_files: int = 0
     indexed_notes: int = 0
+    skipped_directories: int = 0
 
     def to_dict(self) -> dict:
-        return {
+        result = {
             "root_dir": str(self.root_dir),
             "total_directories": self.total_directories,
             "created_files": self.created_files,
@@ -25,6 +26,9 @@ class MOCSummary:
             "unchanged_files": self.unchanged_files,
             "indexed_notes": self.indexed_notes,
         }
+        if self.skipped_directories > 0:
+            result["skipped_directories"] = self.skipped_directories
+        return result
 
 
 def build_tree_mocs(
@@ -44,27 +48,32 @@ def build_tree_mocs(
 
     for directory in directories:
         summary.total_directories += 1
-        notes = _note_files(directory)
-        summary.indexed_notes += len(notes)
-        content = _build_moc_content(
-            vault_root=vault_root,
-            root_dir=root_dir,
-            directory=directory,
-            title_prefix=title_prefix,
-            intro=intro,
-            exclude_dir_names=excluded,
-        )
-        moc_path = directory / f"{directory.name}.md"
-        if not moc_path.exists():
+        try:
+            notes = _note_files(directory)
+            summary.indexed_notes += len(notes)
+            content = _build_moc_content(
+                vault_root=vault_root,
+                root_dir=root_dir,
+                directory=directory,
+                title_prefix=title_prefix,
+                intro=intro,
+                exclude_dir_names=excluded,
+            )
+            moc_path = directory / f"{directory.name}.md"
+            if not moc_path.exists():
+                moc_path.write_text(content, encoding="utf-8")
+                summary.created_files += 1
+                continue
+            previous = moc_path.read_text(encoding="utf-8")
+            if previous == content:
+                summary.unchanged_files += 1
+                continue
             moc_path.write_text(content, encoding="utf-8")
-            summary.created_files += 1
+            summary.updated_files += 1
+        except (OSError, PermissionError):
+            # Skip directories that cannot be read or written; do not abort the whole run
+            summary.skipped_directories += 1
             continue
-        previous = moc_path.read_text(encoding="utf-8")
-        if previous == content:
-            summary.unchanged_files += 1
-            continue
-        moc_path.write_text(content, encoding="utf-8")
-        summary.updated_files += 1
 
     return summary
 
@@ -76,7 +85,11 @@ def _iter_child_dirs(root_dir: Path, exclude_dir_names: set[str]) -> list[Path]:
     while queue:
         current = queue.pop(0)
         for path in sorted(current.iterdir(), key=lambda child: child.name):
-            if not path.is_dir() or path.name.startswith(".") or path.name in exclude_dir_names:
+            if (
+                not path.is_dir()
+                or path.name.startswith(".")
+                or path.name in exclude_dir_names
+            ):
                 continue
             result.append(path)
             queue.append(path)
@@ -89,7 +102,9 @@ def _subdirs(directory: Path, exclude_dir_names: set[str]) -> list[Path]:
         (
             path
             for path in directory.iterdir()
-            if path.is_dir() and not path.name.startswith(".") and path.name not in exclude_dir_names
+            if path.is_dir()
+            and not path.name.startswith(".")
+            and path.name not in exclude_dir_names
         ),
         key=lambda path: path.name,
     )

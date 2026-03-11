@@ -1,0 +1,12 @@
+{
+  "paths": {
+    "output_root": "~/ObsidianVault",
+    "paper_notes_folder": "论文笔记",
+    "assets_folder": "assets/papers"
+  },
+  "image_enhancement": {
+    "enabled": true,
+    "auto_setup_images": false,
+    "preferred_backend": "pymupdf"
+  }
+}
