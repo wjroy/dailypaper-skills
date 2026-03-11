@@ -98,9 +98,11 @@ mkdir -p "$VAULT/DailyPapers" \
 | `paths.obsidian_vault` | 你的 Obsidian 库在哪 |
 | `paths.zotero_db` | Zotero 数据库路径（不用 Zotero 可以不填） |
 | `paths.zotero_storage` | Zotero 附件存储路径 |
-| `daily_papers.keywords` | 你关心的研究方向，用来给论文打分 |
-| `daily_papers.negative_keywords` | 你不想看的方向，命中直接排除 |
-| `daily_papers.domain_boost_keywords` | 额外加分的领域词 |
+| `active_domain` | 当前激活的领域 profile 名称 |
+| `domain_profiles.<name>.queries` | 该领域的检索查询词列表 |
+| `domain_profiles.<name>.positive_keywords` | 正向关键词，用来给论文加分 |
+| `domain_profiles.<name>.negative_keywords` | 负向关键词，命中直接排除 |
+| `domain_profiles.<name>.boost_keywords` | 额外加分的领域特征词 |
 
 `批量读一下 Zotero 里 XXX 分类下的论文` 不需要额外的映射文件；只要 `paths.zotero_db` 和 `paths.zotero_storage` 配对，脚本会直接从你的 Zotero 分类树里查。
 
@@ -144,24 +146,15 @@ mkdir -p "$VAULT/DailyPapers" \
 
 ## 🏠 仓库里有什么
 
-平时真正常用的是前 2 个，后 1 个偏维护：
+3 个面向用户的 skill：
 
-- `daily-papers`：每日推荐全流程
+- `daily-papers`：每日推荐全流程（内含 review-lite / review-rich / 笔记生成等内部阶段）
 - `paper-reader`：读单篇论文
 - `generate-mocs`：手动补刷目录页
 
-另外还有一组内部 skill，主要给调试和重跑单步用：
+另外 `_shared/` 存放共享配置和 MOC 生成脚本。
 
-- `daily-papers-fetch`
-- `daily-papers-review`
-- `daily-papers-notes`
-- `published-review-lite`
-- `review-rich`
-
-其中：
-
-- `daily-papers-fetch` / `daily-papers-review` 是旧版单通道组件，当前主要用于兼容和调试。
-- `daily-papers-notes` 仍保留，但默认消费 merged rich pool（`/tmp/daily_review_merged.json`），且默认只为“必读”生成完整笔记。
+> 以前拆分的 `daily-papers-fetch`、`daily-papers-review`、`daily-papers-notes`、`published-review-lite`、`review-rich` 已在 v2 整合中被删除或内部化，不再作为独立 skill 暴露。相关模板和参考文档已移入 `daily-papers/templates/` 和 `daily-papers/references/`。
 
 ## 🧪 最小可运行 Demo
 
@@ -190,13 +183,7 @@ python skills/daily-papers/orchestration/run_daily_pipeline.py
 
 ## 🎾 进阶用法
 
-如果你只想单独跑流水线某一步，也可以分别说：
-
-```text
-跑一下论文抓取
-跑一下论文点评
-跑一下论文笔记
-```
+日常使用只需 `今日论文推荐` 一句话即可触发完整流水线。流水线内部各阶段（抓取 → 点评 → 笔记）由 `daily-papers` 自动编排，不需要手动分步执行。
 
 如果你想做本地定时任务（比如每天早上6点自动运行），可以直接让 Claude 按你的系统环境帮你配置。
 

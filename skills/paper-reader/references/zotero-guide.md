@@ -58,9 +58,9 @@ def get_collection_path(collection_id):
 
 | 论文 | 错误分类 | 正确分类 | 理由 |
 |------|----------|----------|------|
-| 用 Flow Matching 做 VLA | Flow Matching | VLA | 核心是机器人策略 |
-| 用 3DGS 做 SLAM | 3DGS | SLAM | 目标是定位建图 |
-| DepthAnything | Deep Learning | Depth Estimation | 具体任务 |
+| 用 Transformer 做基坑沉降预测 | Deep Learning | 岩土监测/时序预测 | 核心是岩土应用 |
+| 用 GNN 做蛋白质结构预测 | 深度学习 | 蛋白质与结构 | 核心是结构预测任务 |
+| 时序基础模型综述 | 时序预测 | Survey | 综述类优先分到 Survey |
 
 ## Zotero 分类操作
 
@@ -68,7 +68,7 @@ def get_collection_path(collection_id):
 # 查看论文当前分类
 python3 assets/zotero_helper.py info {item_id}
 # 查找目标分类 ID
-python3 assets/zotero_helper.py find-collection "VLA"
+python3 assets/zotero_helper.py find-collection "岩土"
 # 移动论文
 python3 assets/zotero_helper.py move {item_id} {new_collection_id} --from {old_collection_id}
 # 添加到多个分类
@@ -79,7 +79,7 @@ python3 assets/zotero_helper.py add-to-collection {item_id} {collection_id}
 
 | 当前分类 | 处理方式 |
 |----------|----------|
-| "2025"、"杂项"、"feifeili" 等临时分类 | **必须移动** |
+| "2025"、"杂项"、临时分类 | **必须移动** |
 | 分类与论文内容不符 | 移动到正确分类 |
 | 基本正确但可更精确 | 可选：移动到子分类 |
 | 完全正确 | 保持不变 |

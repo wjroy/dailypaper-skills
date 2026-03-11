@@ -27,7 +27,7 @@ run_daily_pipeline
   │
   ├─ Published 后半段
   │   ├─ published_enrich_from_pdf
-  │   ├─ review-rich
+  │   ├─ review-rich (internal stage)
   │   └─ /tmp/published_enriched_20.json
   │      /tmp/published_review_rich_20.json
   │
@@ -38,10 +38,16 @@ run_daily_pipeline
   │      /tmp/preprint_enriched.json
   │      /tmp/preprint_review_rich_20.json
   │
-  └─ Merge
-      └─ /tmp/daily_review_merged.json
-           ├─ rich_reviewed_pool
-           └─ legacy_compatible_pool (for notes/reader compatibility)
+  ├─ Merge
+  │   └─ /tmp/daily_review_merged.json
+  │        ├─ rich_reviewed_pool
+  │        └─ legacy_compatible_pool (for notes/reader compatibility)
+  │
+  └─ Notes Stage (internal)
+      ├─ concept extraction & creation
+      ├─ paper-reader invocation for must-reads
+      ├─ link backfill to recommendation file
+      └─ MOC refresh (if auto_refresh_indexes=true)
 ```
 
 推荐页渲染：
@@ -59,7 +65,7 @@ run_daily_pipeline
 - `LiteReviewPaperRecord`
   - `review_tier=lite`
   - `evidence_scope=metadata_only`
-  - 仅做“是否值得拿 PDF”的分诊
+  - 仅做"是否值得拿 PDF"的分诊
 - `RichReviewPaperRecord`
   - `review_tier=rich`
   - 吃 enrich 结果（preprint enrich 或 published PDF enrich）
@@ -149,16 +155,19 @@ final_meta_score =
 
 ## review-lite / review-rich 边界
 
+> 这两个阶段已内部化为 `daily-papers` 的流水线步骤，不再作为独立 skill 暴露。
+> 模板文件位于 `skills/daily-papers/templates/`。
+
 ### review-lite
 
-- skill: `skills/published-review-lite/SKILL.md`
+- 模板: `skills/daily-papers/templates/lite_review_template.md`
 - 只吃 metadata-first
 - 不依赖 PDF
-- 输出“是否值得获取 PDF”
+- 输出"是否值得获取 PDF"
 
 ### review-rich
 
-- skill: `skills/review-rich/SKILL.md`
+- 模板: `skills/daily-papers/templates/rich_review_template.md`
 - 输入 enrich 结果
 - 输出 rich decision 与结构化点评
 - 必须对缺失字段和低置信度诚实标注
@@ -230,13 +239,27 @@ final_meta_score =
 - `preferred_fulltext_input_type`
 - `preferred_fulltext_input_value`
 
-`daily-papers-notes` 已改为默认读取 merged 结果，且默认只处理“必读”。
+笔记生成阶段（已内部化）默认读取 merged 结果，且默认只处理"必读"。详见 `skills/daily-papers/references/notes-stage-guide.md`。
 
-## 旧模块新角色
+## Skill 整合说明
 
-- `daily-papers-fetch`：旧单通道抓取，保留为兼容/调试入口
-- `daily-papers-review`：旧点评 skill，已由 `published-review-lite` + `review-rich` 分层替代
-- `daily-papers-notes`：保留，默认消费 merged rich pool
+v2 整合后，仅保留 3 个面向用户的公开 skill：
+
+| Skill | 用途 |
+| --- | --- |
+| `daily-papers` | 每日推荐全流程（含 review-lite / review-rich / notes 等内部阶段） |
+| `paper-reader` | 读单篇论文 |
+| `generate-mocs` | 手动补刷目录页 |
+
+以下旧 skill 已删除或内部化：
+
+| 旧 Skill | 处理 |
+| --- | --- |
+| `daily-papers-fetch` | 已删除（旧单通道抓取，功能由 v2 双通道覆盖） |
+| `daily-papers-review` | 已删除（旧单通道点评，功能由 review-lite + review-rich 分层替代） |
+| `daily-papers-notes` | 已内部化（移入 `daily-papers/references/notes-stage-guide.md`） |
+| `published-review-lite` | 已内部化（模板移入 `daily-papers/templates/`） |
+| `review-rich` | 已内部化（模板移入 `daily-papers/templates/`） |
 
 ## 最小可运行 Demo
 
@@ -256,11 +279,12 @@ python skills/daily-papers/state/resume_published.py
 - Preprint adaptive source
 - Published PDF bridge（本地 PDF -> enriched JSON）
 - rich merge 输出和 notes 兼容入口
+- Skill 整合（8 -> 3 公开入口）
 
 ### MVP 边界（当前仍需人工参与）
 
 - Published 通道 PDF 获取仍是人工（Zotero/本地下载）
-- rich review 的“深度文字点评”仍以结构化自动结果为主，非完整人工审稿级分析
+- rich review 的"深度文字点评"仍以结构化自动结果为主，非完整人工审稿级分析
 
 ### 后续增强建议
 

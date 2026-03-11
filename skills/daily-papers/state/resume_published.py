@@ -117,7 +117,7 @@ def resume() -> dict[str, Any]:
             "merge_completed": merged.get("returncode") == 0,
             "final_recommendation_rendered": recommendation_final.get("returncode")
             == 0,
-            "next_step": "Run /daily-papers-notes to generate notes from merged must-read pool.",
+            "next_step": "Proceed to notes generation stage (see references/notes-stage-guide.md) for merged must-read pool.",
         }
     )
     save_state(finished_state)
