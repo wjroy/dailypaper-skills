@@ -133,7 +133,7 @@ FIELD_SOURCE_NOTES: dict[str, dict[str, str]] = {
         "*_score/final_meta_score": "Metadata ranker output with weighted scoring formula.",
     },
     "LiteReviewPaperRecord": {
-        "lite_decision/lite_reasoning": "review-lite output; must be based on metadata/abstract only.",
+        "lite_decision/lite_reasoning": "Lite review stage output; must be based on metadata/abstract only.",
         "recommended_for_pdf": "Derived from lite decision and selection budget.",
     },
     "RichReviewPaperRecord": {

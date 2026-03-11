@@ -17,7 +17,7 @@ DEFAULT_CONFIG = {
         "zotero_db": "~/Zotero/zotero.sqlite",
         "zotero_storage": "~/Zotero/storage",
     },
-    "active_domain": "intelligent_construction",
+    "active_domain": "geo_timeseries_fm",
     "published_channel": {
         "enabled": True,
         "backend": "paper_fetcher",
@@ -45,7 +45,7 @@ DEFAULT_CONFIG = {
         "sources": {
             "arxiv": {
                 "enabled": True,
-                "categories": ["cs.RO", "cs.CV", "cs.AI", "cs.LG"],
+                "categories": ["cs.RO", "cs.AI", "cs.LG", "eess.SP"],
                 "max_results": 200,
                 "sort_by": "submittedDate",
             },
@@ -58,6 +58,73 @@ DEFAULT_CONFIG = {
         },
     },
     "domain_profiles": {
+        "geo_timeseries_fm": {
+            "queries": [
+                "geotechnical time series forecasting",
+                "deep excavation deformation prediction",
+                "foundation pit settlement prediction",
+                "tunnel settlement spatiotemporal forecasting",
+                "uncertainty-aware geotechnical forecasting foundation model",
+            ],
+            "positive_keywords": [
+                "geotechnical",
+                "deep excavation",
+                "foundation pit",
+                "tunnel settlement",
+                "deformation prediction",
+                "time series forecasting",
+                "spatiotemporal forecasting",
+                "uncertainty-aware",
+                "probabilistic forecasting",
+                "interval prediction",
+                "quantile prediction",
+                "foundation model",
+                "pretrained model",
+                "large time-series model",
+                "risk assessment",
+                "early warning",
+            ],
+            "negative_keywords": [
+                "medical imaging",
+                "clinical",
+                "genomics",
+                "protein",
+                "drug discovery",
+                "epidemic",
+                "monsoon",
+                "rocket",
+                "ignition",
+                "humanoid locomotion",
+                "robotic manipulation",
+                "speech synthesis",
+                "speech recognition",
+                "audio generation",
+                "financial forecasting",
+                "stock market",
+                "trading",
+                "text-to-sql",
+                "gui agent",
+            ],
+            "boost_keywords": [
+                "field monitoring",
+                "site data",
+                "inclinometer",
+                "settlement",
+                "displacement",
+                "uncertainty quantification",
+                "probabilistic risk",
+                "warning threshold",
+            ],
+            "source_preferences": {
+                "openalex": 1.1,
+                "crossref": 1.0,
+                "pubmed": 0.1,
+                "europe_pmc": 0.1,
+                "arxiv": 1.2,
+                "biorxiv": 0.1,
+            },
+            "preprint_source": "arxiv",
+        },
         "intelligent_construction": {
             "queries": [
                 "intelligent construction",
@@ -162,48 +229,6 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return base
 
 
-def _ensure_list(value: object) -> list:
-    if isinstance(value, list):
-        return value
-    return []
-
-
-def _migrate_legacy_daily_papers(config: dict) -> None:
-    """Bridge old `daily_papers` config into domain/profile-aware config.
-
-    If a user still has a `daily_papers` section in their local config override,
-    this fills missing domain-profile values from it. Since the default config no
-    longer includes this block, this only fires when a local override provides one.
-    """
-
-    legacy = config.get("daily_papers")
-    if not isinstance(legacy, dict):
-        return
-
-    profiles = config.setdefault("domain_profiles", {})
-    ic = profiles.setdefault("intelligent_construction", {})
-
-    # Fill only missing values; explicit domain profile settings win.
-    if not ic.get("queries"):
-        ic["queries"] = _ensure_list(legacy.get("keywords"))
-    if not ic.get("positive_keywords"):
-        ic["positive_keywords"] = _ensure_list(legacy.get("keywords"))
-    if not ic.get("negative_keywords"):
-        ic["negative_keywords"] = _ensure_list(legacy.get("negative_keywords"))
-    if not ic.get("boost_keywords"):
-        ic["boost_keywords"] = _ensure_list(legacy.get("domain_boost_keywords"))
-    ic.setdefault("source_preferences", {})
-    ic.setdefault("preprint_source", "arxiv")
-
-    preprint_sources = (
-        config.setdefault("preprint_channel", {})
-        .setdefault("sources", {})
-        .setdefault("arxiv", {})
-    )
-    if not preprint_sources.get("categories"):
-        preprint_sources["categories"] = _ensure_list(legacy.get("arxiv_categories"))
-
-
 @lru_cache(maxsize=1)
 def load_user_config() -> dict:
     config = copy.deepcopy(DEFAULT_CONFIG)
@@ -218,10 +243,8 @@ def load_user_config() -> dict:
         if isinstance(loaded, dict):
             _deep_merge(config, loaded)
 
-    _migrate_legacy_daily_papers(config)
-
     if config.get("active_domain") not in config.get("domain_profiles", {}):
-        config["active_domain"] = "intelligent_construction"
+        config["active_domain"] = "geo_timeseries_fm"
 
     return config
 
@@ -235,7 +258,7 @@ def paths_config() -> dict:
 
 
 def active_domain() -> str:
-    return str(load_user_config().get("active_domain", "intelligent_construction"))
+    return str(load_user_config().get("active_domain", "geo_timeseries_fm"))
 
 
 def domain_profiles_config() -> dict:
@@ -245,7 +268,7 @@ def domain_profiles_config() -> dict:
 def active_domain_profile() -> dict:
     profiles = domain_profiles_config()
     name = active_domain()
-    return profiles.get(name, profiles.get("intelligent_construction", {}))
+    return profiles.get(name, profiles.get("geo_timeseries_fm", {}))
 
 
 def published_channel_config() -> dict:
@@ -254,50 +277,6 @@ def published_channel_config() -> dict:
 
 def preprint_channel_config() -> dict:
     return load_user_config().get("preprint_channel", {})
-
-
-def daily_papers_config() -> dict:
-    """Backward-compatible view for legacy single-channel scripts.
-
-    Synthesizes values from the active domain profile. Falls back to a
-    `daily_papers` block only if present in a user-config override.
-    """
-
-    config = load_user_config()
-    legacy = config.get("daily_papers", {})
-    profile = active_domain_profile()
-
-    keywords = list(
-        dict.fromkeys(
-            _ensure_list(profile.get("queries"))
-            + _ensure_list(profile.get("positive_keywords"))
-        )
-    )
-    if not keywords:
-        keywords = _ensure_list(legacy.get("keywords"))
-
-    negative_keywords = _ensure_list(profile.get("negative_keywords")) or _ensure_list(
-        legacy.get("negative_keywords")
-    )
-    boost_keywords = _ensure_list(profile.get("boost_keywords")) or _ensure_list(
-        legacy.get("domain_boost_keywords")
-    )
-
-    arxiv_categories = (
-        preprint_channel_config()
-        .get("sources", {})
-        .get("arxiv", {})
-        .get("categories", _ensure_list(legacy.get("arxiv_categories")))
-    )
-
-    return {
-        "keywords": keywords,
-        "negative_keywords": negative_keywords,
-        "domain_boost_keywords": boost_keywords,
-        "arxiv_categories": arxiv_categories,
-        "min_score": int(legacy.get("min_score", 2)),
-        "top_n": int(legacy.get("top_n", 30)),
-    }
 
 
 def automation_config() -> dict:

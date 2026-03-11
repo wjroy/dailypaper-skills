@@ -1,75 +1,60 @@
-# 概念自动归类规则
+# 概念归类规则
 
 概念库位置：`{CONCEPTS_PATH}`
 
-先用 `ls {CONCEPTS_PATH}` 查看已有子目录，再按当前研究领域的规则分类。
+按 `active_domain` 选择分类。优先少而稳定，不追求过细目录树。
 
-## 归类原则
+## geo_timeseries_fm
 
-1. **按 `active_domain` 选择对应的分类表**（见下方各领域子目录定义）
-2. 如果概念不属于任何已定义类别，归入 `0-待分类`（应尽量避免）
-3. 跨领域的通用概念（如 Transformer、GNN）归入各领域的"基础方法"类别
+| 子目录 | 说明 | 示例 |
+| --- | --- | --- |
+| `1-岩土监测与预测` | 基坑、隧道、沉降、变形预测 | settlement, deformation, foundation pit |
+| `2-时空与不确定性` | 时空建模、概率预测、区间估计 | spatiotemporal, quantile, conformal |
+| `3-基础模型与机器学习` | 预训练、迁移学习、通用建模方法 | foundation model, transformer, LoRA |
+| `4-工程应用与数据` | 监测系统、现场数据、数字孪生 | field monitoring, digital twin |
+| `5-Survey` | 综述和 benchmark | survey, benchmark |
+| `0-待分类` | 无法判断时使用 | - |
 
----
+## intelligent_construction
 
-## geo_timeseries_fm / intelligent_construction 领域
+| 子目录 | 说明 | 示例 |
+| --- | --- | --- |
+| `1-施工机器人与自动化` | 施工机器人、自主作业、机器人平台 | construction robot, autonomous excavation |
+| `2-岩土与安全监测` | 岩土场景、安全监测、预警 | geotechnical, safety monitoring |
+| `3-数字孪生与感知控制` | BIM/CIM、感知、定位、控制 | digital twin, LiDAR, MPC |
+| `4-基础模型与机器学习` | 通用机器学习方法 | transformer, foundation model |
+| `5-Survey` | 综述和 benchmark | survey, benchmark |
+| `0-待分类` | 无法判断时使用 | - |
 
-| 子目录 | 归类标准 | 示例 |
-|--------|----------|------|
-| `1-时序预测` | 时间序列预测方法、模型 | LSTM, Transformer-TS, Informer, PatchTST |
-| `2-岩土工程` | 岩土力学、基坑、隧道、边坡相关 | FEM, Mohr-Coulomb, SPT, CPT |
-| `3-不确定性量化` | 概率预测、置信区间、贝叶斯方法 | Conformal Prediction, BNN, GP |
-| `4-基础模型` | 预训练大模型、迁移学习 | Foundation Model, LoRA, Prompt Tuning |
-| `5-时空建模` | 时空联合建模、图网络 | GNN, ST-GCN, Spatial Attention |
-| `6-数字孪生` | BIM、仿真、有限元 | Digital Twin, FEM, OpenSees |
-| `7-传感与物联网` | 传感器、边缘计算、实时监测 | MEMS, LoRa, Edge AI |
-| `8-深度学习基础` | 通用 DL 技术、架构组件 | Transformer, CNN, Attention, Dropout |
-| `9-数据集` | 数据集、benchmark | SHM Benchmark, PLAXIS Dataset |
-| `0-待分类` | **仅在完全无法判断时**才用 | — |
+## biology
 
-## biology 领域
-
-| 子目录 | 归类标准 | 示例 |
-|--------|----------|------|
-| `1-免疫学` | 免疫应答、T/B 细胞、抗体 | TCR, MHC, Cytokine Storm |
-| `2-单细胞组学` | scRNA-seq、空间转录组、多组学 | Seurat, Scanpy, UMAP |
-| `3-蛋白质与结构` | 蛋白质结构预测、分子动力学 | AlphaFold, Rosetta, MD |
-| `4-基因调控` | 转录因子、表观遗传、CRISPR | Enhancer, Methylation, sgRNA |
-| `5-生物信息学` | 序列比对、系统发育、基因组 | BLAST, Phylogenetics, BWA |
-| `6-药物发现` | 虚拟筛选、分子生成 | SMILES, Docking, ADMET |
-| `7-临床与流行病学` | 临床队列、生物标志物 | Biomarker, Hazard Ratio, ROC |
-| `8-计算方法` | 深度学习与机器学习通用方法 | Transformer, GNN, VAE |
-| `9-数据集` | 生物数据集、benchmark | TCGA, GEO, UniProt |
-| `0-待分类` | **仅在完全无法判断时**才用 | — |
-
----
+| 子目录 | 说明 | 示例 |
+| --- | --- | --- |
+| `1-免疫与疾病机制` | 免疫过程、疾病机理、临床线索 | immune, cytokine, biomarker |
+| `2-组学与生物信息` | 单细胞、转录组、序列分析 | scRNA-seq, transcriptomics, BLAST |
+| `3-蛋白质与分子设计` | 蛋白结构、分子动力学、药物设计 | AlphaFold, docking, protein |
+| `4-计算方法` | 通用计算方法和模型 | transformer, GNN, VAE |
+| `5-Survey` | 综述和 benchmark | review, tutorial |
+| `0-待分类` | 无法判断时使用 | - |
 
 ## 概念笔记模板
 
 ```markdown
 ---
 type: concept
-aliases: [中文别名, 英文别名]
 domain: {active_domain}
+aliases: []
 ---
 
 # 概念名称
 
 ## 定义
-{一句话定义}
 
-## 数学形式
-$$公式$$
-
-## 核心要点
-1. ...
-2. ...
+## 为什么重要
 
 ## 代表工作
-- [[Paper1]]: ...
-- [[Paper2]]: ...
+- [[Paper1]]
 
 ## 相关概念
-- [[相关概念1]]
-- [[相关概念2]]
+- [[Related Concept]]
 ```

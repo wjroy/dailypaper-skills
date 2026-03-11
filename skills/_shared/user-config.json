@@ -15,6 +15,7 @@
     "lite_n": 50,
     "pdf_n": 20,
     "rich_n": 20,
+    "auto_continue_without_pdf": false,
     "providers": [
       "openalex",
       "crossref",
@@ -34,7 +35,7 @@
     "sources": {
       "arxiv": {
         "enabled": true,
-        "categories": ["cs.RO", "cs.CV", "cs.AI", "cs.LG"],
+        "categories": ["cs.RO", "cs.AI", "cs.LG", "eess.SP"],
         "max_results": 200,
         "sort_by": "submittedDate"
       },

@@ -1,219 +1,92 @@
 ---
 title: "{Title}"
-method_name: "{MethodName}"
 authors: [{Authors}]
 year: {Year}
-venue: {Venue}
-tags: [{tags}]
-zotero_collection: {zotero_path}
-image_source: online  # online（默认）/ mixed / local
+source: "{Source}"
+venue: "{Venue}"
+doi: "{DOI}"
+url: "{URL}"
 arxiv_id: "{arxiv_id}"
-arxiv_html: "{arxiv_html_url}"  # 如有
-domain: "{domain}"  # 来自 active_domain
-extraction_confidence: {0.0-1.0}  # 整体提取质量自评
+zotero_collection: "{zotero_collection}"
+tags: [{tags}]
+domain: "{domain}"
+image_source: online
+extraction_confidence: {0.0-1.0}
 created: {date}
 ---
 
 # {Title}
 
-## 元信息
+## Paper Snapshot
 
-| 项目 | 内容 |
-|------|------|
-| 机构 | {Affiliations} |
-| 日期 | {Month Year} |
-| 项目主页 | {project_page_url} |
-| 对比基线 | [[{baseline_paper}]] |
-| 链接 | [arXiv]({arxiv_url}) / [Code]({code_url}) |
+| Field | Value |
+| --- | --- |
+| Authors | {AuthorsText} |
+| Year | {Year} |
+| Source | {Source} |
+| DOI / URL | {DOI_or_URL} |
+| Zotero | {zotero_collection} |
 
----
+## One-Line Summary
 
-## 一句话总结
+> {One sentence summary}
 
-> {用一句话概括这篇论文的核心贡献，不超过50字}
+## Research Problem
 
----
+{What problem does this paper solve, and why does it matter?}
 
-## 核心贡献
+## Method Summary
 
-1. **{贡献1标题}**: {简要说明}
-2. **{贡献2标题}**: {简要说明}
-3. **{贡献3标题}**: {简要说明}
+{Compact description of the method, pipeline, or experimental design.}
 
----
+### Key Components
 
-## 研究问题与动机
+- {Component 1}
+- {Component 2}
+- {Component 3}
 
-### 要解决的问题
-{这篇论文要解决什么问题？}
+## Key Figures
 
-### 现有方法的局限
-{之前的方法有什么不足？}
-
-### 本文的动机
-{为什么作者认为他们的方法能解决这个问题？}
-
----
-
-## 方法详解
-
-### 整体框架
-
-<!-- 使用 [[概念]] 内联链接所有技术术语 -->
-
-{方法名} 采用 **{框架类型}** 框架：
-- **输入**: {输入描述}
-- **核心模块**: [[{核心技术1}]]、[[{核心技术2}]]
-- **输出**: {输出描述}
-
-### 核心模块
-
-#### 模块1: {名称}
-
-**设计动机**: {为什么需要这个模块}
-
-**具体实现**:
-- {实现细节1}
-- {实现细节2}
-
-#### 模块2: {名称}
-
-{同上格式}
-
----
-
-## 关键公式
-
-<!-- 公式标题使用 [[概念|名称]] 格式链接到概念库 -->
-
-### 公式1: [[{概念名}|{公式用途}]]
-
-$$
-{公式内容}
-$$
-
-**含义**: {一句话解释公式的作用}
-
-**符号说明**:
-- ${符号1}$: {含义}
-- ${符号2}$: {含义}
-
-### 公式2: {名称}
-
-$$
-{公式内容}
-$$
-
-**含义**: {说明}
-
-{... 列出论文中所有重要公式 ...}
-
----
-
-## 关键图表
-
-<!-- 图片：优先用外链 ![Figure X](url)；外链不可用时用 ![[本地文件]] -->
-<!-- 使用 extract_arxiv_figures.py 提取的 URL 作为主要来源 -->
-
-### Figure 1: {标题}
+### Figure 1: {Figure title}
 
 ![Figure 1]({image_url})
 
-**说明**: {描述图片内容及其意义}
+{Why this figure matters.}
 
-### Figure 2: {标题}
+## Main Findings
 
-![Figure 2]({image_url})
+- {Finding 1}
+- {Finding 2}
+- {Finding 3}
 
-**说明**: {描述}
+## Notes on Data / Evaluation
 
-### Table 1: {表格标题}
+- {Dataset, benchmark, cohort, site data, or experimental setup}
+- {Important comparison or validation detail}
 
-| Method | Metric1 | Metric2 | Metric3 |
-|--------|---------|---------|---------|
-| Baseline1 | x.xx | x.xx | x.xx |
-| **Ours** | **x.xx** | **x.xx** | **x.xx** |
+## Limitations
 
-**说明**: {表格的关键发现}
+- {Limitation 1}
+- {Limitation 2}
 
-{... 列出论文中所有 Figure 和 Table ...}
+## Inspiration for My Research
 
----
+- {Transferable idea}
+- {What to verify before reuse}
 
-## 实验
+## Linked Concepts
 
-### 数据集
+- [[{Concept1}]]
+- [[{Concept2}]]
 
-| 数据集 | 规模 | 特点 | 用途 |
-|--------|------|------|------|
-| {Dataset1} | {size} | {特点} | 训练/测试 |
+## Missing Field Report
 
-### 实现细节
+| Field | Status | Reason |
+| --- | --- | --- |
+| {field_name} | missing / partial | {reason} |
 
-- **框架**: {使用的框架}
-- **优化器**: {Adam/SGD, 学习率}
-- **硬件**: {GPU 型号和数量}
-- **训练时间**: {时长}
+## Source Notes
 
-### 主要结果
-
-{定量结果和定性分析}
-
----
-
-## 批判性思考
-
-### 优点
-1. {优点1}
-2. {优点2}
-
-### 局限性
-1. {局限1}
-2. {局限2}
-
-### 潜在改进方向
-1. {改进方向1}
-2. {改进方向2}
-
-### 可复现性评估
-- [ ] 代码开源
-- [ ] 预训练模型
-- [ ] 训练细节完整
-- [ ] 数据集可获取
-
----
-
-## 关联笔记
-
-### 基于
-- [[{前置工作1}]]: {关系说明}
-
-### 对比
-- [[{对比方法1}]]: {为什么对比}
-
-### 方法相关
-- [[{核心技术1}]]: 核心方法
-
----
-
-## 缺失字段报告
-
-<!-- 诚实记录无法提取的内容，不要虚构 -->
-
-| 字段 | 状态 | 原因 |
-|------|------|------|
-| {字段名} | 缺失/不完整 | {原因：如 PDF-only 无法解析 / HTML 不可用 / 论文未提供} |
-
----
-
-## 速查卡片
-
-> [!summary] {Title}
-> - **核心**: {一句话核心}
-> - **方法**: {关键方法}
-> - **结果**: {主要结果}
-> - **代码**: {GitHub链接}
-
----
-
-*笔记创建时间: {timestamp}*
+- Full-text route: {fulltext_route}
+- Figure source: {figure_source}
+- Extraction notes: {extraction_notes}
