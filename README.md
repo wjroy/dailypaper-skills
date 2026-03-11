@@ -115,7 +115,7 @@ ObsidianVault/
 - [Obsidian](https://obsidian.md/)
 - [Python 3.8+](https://www.python.org/)
 - [`poppler-utils`](https://poppler.freedesktop.org/)
-- [Zotero](https://www.zotero.org/)（可选，但 Published PDF 检查点和 Zotero 读取会用到）
+- [Zotero](https://www.zotero.org/)（Published PDF 检查点和 Zotero 读取会用到）
 
 在仓库根目录运行：
 

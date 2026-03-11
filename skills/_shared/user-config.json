@@ -1,0 +1,155 @@
+{
+  "paths": {
+    "obsidian_vault": "C:\\Users\\win\\Documents\\ObsidianVault",
+    "paper_notes_folder": "论文笔记",
+    "daily_papers_folder": "DailyPapers",
+    "concepts_folder": "_概念",
+    "zotero_db": "C:\\Users\\win\\Zotero\\zotero.sqlite",
+    "zotero_storage": "C:\\Users\\win\\Zotero\\storage"
+  },
+  "active_domain": "geo_timeseries_fm",
+  "published_channel": {
+    "enabled": true,
+    "backend": "paper_fetcher",
+    "recall_n": 200,
+    "lite_n": 50,
+    "pdf_n": 20,
+    "rich_n": 20,
+    "auto_continue_without_pdf": false,
+    "providers": [
+      "openalex",
+      "crossref",
+      "pubmed",
+      "europe_pmc",
+      "unpaywall"
+    ],
+    "year_range": "",
+    "journal_article_only": false,
+    "has_abstract": true
+  },
+  "preprint_channel": {
+    "enabled": true,
+    "source_mode": "arxiv",
+    "default_source": "arxiv",
+    "rich_n": 20,
+    "sources": {
+      "arxiv": {
+        "enabled": true,
+        "categories": ["cs.RO", "cs.AI", "cs.LG", "eess.SP"],
+        "max_results": 200,
+        "sort_by": "submittedDate"
+      }
+    }
+  },
+  "domain_profiles": {
+    "intelligent_construction": {
+      "queries": [
+        "intelligent construction",
+        "construction robotics",
+        "geotechnical monitoring",
+        "foundation pit",
+        "embodied ai for civil engineering"
+      ],
+      "positive_keywords": [
+        "construction",
+        "geotechnical",
+        "foundation pit",
+        "embodied ai",
+        "robotics",
+        "autonomous excavation",
+        "digital twin"
+      ],
+      "negative_keywords": [
+        "weather forecast",
+        "speech synthesis",
+        "gui agent",
+        "text-to-sql",
+        "computer graphics",
+        "advertising optimization"
+      ],
+      "boost_keywords": [
+        "field deployment",
+        "real-world",
+        "earthwork",
+        "tunnel",
+        "safety monitoring",
+        "sim-to-real"
+      ],
+      "source_preferences": {
+        "openalex": 1.0,
+        "crossref": 1.0,
+        "pubmed": 0.2,
+        "europe_pmc": 0.2,
+        "arxiv": 1.0
+      },
+      "preprint_source": "arxiv"
+    },
+    "geo_timeseries_fm": {
+      "queries": [
+        "geotechnical time series forecasting",
+        "deep excavation deformation prediction",
+        "foundation pit settlement prediction",
+        "tunnel settlement spatiotemporal forecasting",
+        "uncertainty-aware geotechnical forecasting foundation model"
+      ],
+      "positive_keywords": [
+        "geotechnical",
+        "deep excavation",
+        "foundation pit",
+        "tunnel settlement",
+        "deformation prediction",
+        "time series forecasting",
+        "spatiotemporal forecasting",
+        "uncertainty-aware",
+        "probabilistic forecasting",
+        "interval prediction",
+        "quantile prediction",
+        "foundation model",
+        "pretrained model",
+        "large time-series model",
+        "risk assessment",
+        "early warning"
+      ],
+      "negative_keywords": [
+        "weather forecast",
+        "monsoon",
+        "rocket",
+        "ignition",
+        "humanoid locomotion",
+        "robotic manipulation",
+        "speech synthesis",
+        "speech recognition",
+        "audio generation",
+        "financial forecasting",
+        "stock market",
+        "trading",
+        "text-to-sql",
+        "gui agent"
+      ],
+      "boost_keywords": [
+        "field monitoring",
+        "site data",
+        "inclinometer",
+        "settlement",
+        "displacement",
+        "uncertainty quantification",
+        "probabilistic risk",
+        "warning threshold"
+      ],
+      "source_preferences": {
+        "openalex": 1.1,
+        "crossref": 1.0,
+        "pubmed": 0.1,
+        "europe_pmc": 0.1,
+        "arxiv": 1.2
+      },
+      "preprint_source": "arxiv"
+    }
+  },
+  "automation": {
+    "auto_refresh_indexes": true,
+    "git_commit": false,
+    "git_push": false,
+    "save_phase_outputs": true
+  }
+}
