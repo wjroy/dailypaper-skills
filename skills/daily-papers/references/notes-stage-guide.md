@@ -53,10 +53,10 @@ v2 默认输入为 merge 后结果：`/tmp/daily_review_merged.json`，且默认
 
 **1b: 过滤**
 只保留以下类型的术语（跳过通用词、论文自身名称、公司名、人名）：
-- 方法/模型名（如 Q-Former, Parseval Regularization, CVAE, PCM）
-- 数据集名（如 AMASS, LaFan1, MotionX, AndroidCode）
-- 仿真器/框架名（如 OmniGibson, IsaacLab, Acados）
-- 技术概念名（如 System Level Synthesis, Consistency Model）
+- 方法/模型名（如 TimesFM, PatchTST, iTransformer, AlphaFold）
+- 数据集名（如 ETTh1, WeatherBench, UniProt, AndroidCode）
+- 仿真器/框架名（如 GluonTS, Darts, OpenMM）
+- 技术概念名（如 Quantile Regression, Conformal Prediction, Attention Mechanism）
 
 **1c: 创建缺失的概念笔记（自动归类）**
 检查 `{CONCEPTS_PATH}/` 下是否已存在（搜索所有子目录）。对于缺失的概念，**根据概念类型自动归类到对应子目录**，不要全扔 `0-待分类/`。

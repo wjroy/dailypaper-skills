@@ -49,7 +49,6 @@ ObsidianVault/
 批判性分析这篇论文 ~/Downloads/paper.pdf
 
 读一下 Zotero 里的 Diffusion Policy
-批量读一下 Zotero 里 VLA 分类下的论文
 ```
 
 `今日论文推荐` 会跑完整流程，`读一下这篇论文 ...` 用来读单篇。
@@ -104,7 +103,7 @@ mkdir -p "$VAULT/DailyPapers" \
 | `domain_profiles.<name>.negative_keywords` | 负向关键词，命中直接排除 |
 | `domain_profiles.<name>.boost_keywords` | 额外加分的领域特征词 |
 
-`批量读一下 Zotero 里 XXX 分类下的论文` 不需要额外的映射文件；只要 `paths.zotero_db` 和 `paths.zotero_storage` 配对，脚本会直接从你的 Zotero 分类树里查。
+`读一下 Zotero 里的 XXX` 不需要额外的映射文件；只要 `paths.zotero_db` 和 `paths.zotero_storage` 配对，脚本会直接从你的 Zotero 分类树里查。
 
 ## 🦮 默认行为
 
@@ -200,7 +199,7 @@ python skills/daily-papers/orchestration/run_daily_pipeline.py
 
 **不用 Zotero 可以吗？**
 
-可以。每日推荐不依赖 Zotero，单篇阅读也支持直接输入 arXiv 链接或本地 PDF。Zotero 主要用于已有文献库的搜索、归类和批量处理。
+可以。每日推荐不依赖 Zotero，单篇阅读也支持直接输入 arXiv 链接或本地 PDF。Zotero 主要用于已有文献库的搜索和归类。
 
 **不用 Obsidian 可以吗？**
 

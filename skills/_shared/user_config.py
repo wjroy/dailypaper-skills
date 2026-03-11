@@ -150,74 +150,6 @@ DEFAULT_CONFIG = {
         "git_push": False,
         "save_phase_outputs": True,
     },
-    # Backward compatibility for old scripts that still consume daily_papers block.
-    "daily_papers": {
-        "keywords": [
-            "world model",
-            "diffusion model",
-            "embodied ai",
-            "3d gaussian splatting",
-            "4d gaussian splatting",
-            "sim-to-real",
-            "sim2real",
-            "robot simulation",
-        ],
-        "negative_keywords": [
-            "medical imaging",
-            "weather forecast",
-            "climate",
-            "pet restoration",
-            "mri",
-            "ct scan",
-            "pathology",
-            "diagnosis",
-            "protein",
-            "drug discovery",
-            "molecular",
-            "audio generation",
-            "music generation",
-            "speech synthesis",
-            "text-to-speech",
-            "speech recognition",
-            "voice cloning",
-            "coding agent",
-            "code agent",
-            "code generation",
-            "software engineering agent",
-            "gui agent",
-            "computer use",
-            "web agent",
-            "browser agent",
-            "document parsing",
-            "document understanding",
-            "ocr",
-            "rag framework",
-            "retrieval augmented",
-            "retrieval-augmented",
-            "llm memory",
-            "long-term memory for llm",
-            "text-to-sql",
-            "code repair",
-            "code review",
-            "trading",
-            "financial",
-        ],
-        "domain_boost_keywords": [
-            "robot",
-            "manipulation",
-            "grasping",
-            "locomotion",
-            "navigation",
-            "planning",
-            "reinforcement learning",
-            "policy learning",
-            "visuomotor",
-            "action prediction",
-        ],
-        "arxiv_categories": ["cs.RO", "cs.CV", "cs.AI", "cs.LG"],
-        "min_score": 2,
-        "top_n": 30,
-    },
 }
 
 
@@ -239,8 +171,9 @@ def _ensure_list(value: object) -> list:
 def _migrate_legacy_daily_papers(config: dict) -> None:
     """Bridge old `daily_papers` config into domain/profile-aware config.
 
-    This keeps older scripts functional during staged migration while new modules
-    consume `active_domain` + `domain_profiles`.
+    If a user still has a `daily_papers` section in their local config override,
+    this fills missing domain-profile values from it. Since the default config no
+    longer includes this block, this only fires when a local override provides one.
     """
 
     legacy = config.get("daily_papers")
@@ -326,8 +259,8 @@ def preprint_channel_config() -> dict:
 def daily_papers_config() -> dict:
     """Backward-compatible view for legacy single-channel scripts.
 
-    During migration, old scripts still use this function. We synthesize values
-    from the active domain profile whenever possible.
+    Synthesizes values from the active domain profile. Falls back to a
+    `daily_papers` block only if present in a user-config override.
     """
 
     config = load_user_config()

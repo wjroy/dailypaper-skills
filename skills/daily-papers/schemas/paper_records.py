@@ -142,7 +142,7 @@ FIELD_SOURCE_NOTES: dict[str, dict[str, str]] = {
         "section_headers/figure_captions/table_captions": "PDF/preprint enrich extractors.",
         "method_* / experiment_*": "Enrich extractors from PDF/HTML content.",
         "missing_field_report": "Explicit extraction failures and reasons (no fabrication).",
-        "rich_decision/*": "review-rich output grounded in enriched evidence.",
+        "rich_decision/*": "Rich review stage output grounded in enriched evidence.",
     },
 }
 
