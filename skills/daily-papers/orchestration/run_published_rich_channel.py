@@ -69,6 +69,20 @@ def _make_rich_record(item: dict) -> RichReviewPaperRecord:
     else:
         caveat = "Enriched from local PDF text; still validate nuanced claims manually."
 
+    local_pdf_paths = list(item.get("local_pdf_paths", []))
+    if local_pdf_paths:
+        preferred_type = "local_pdf"
+        preferred_value = local_pdf_paths[0]
+    elif item.get("pdf_url"):
+        preferred_type = "pdf_url"
+        preferred_value = item.get("pdf_url", "")
+    elif item.get("doi"):
+        preferred_type = "doi_url"
+        preferred_value = f"https://doi.org/{item.get('doi', '')}"
+    else:
+        preferred_type = "doi_url"
+        preferred_value = item.get("url", "")
+
     return RichReviewPaperRecord(
         paper_id=item.get("paper_id", ""),
         channel="published",
@@ -110,7 +124,10 @@ def _make_rich_record(item: dict) -> RichReviewPaperRecord:
         lite_confidence=float(item.get("lite_confidence", max(0.2, meta))),
         lite_reasoning=item.get("lite_reasoning", ""),
         recommended_for_pdf=bool(item.get("recommended_for_pdf", False)),
-        local_pdf_paths=list(item.get("local_pdf_paths", [])),
+        local_pdf_paths=local_pdf_paths,
+        zotero_attachment_paths=local_pdf_paths,
+        preferred_fulltext_input_type=preferred_type,
+        preferred_fulltext_input_value=preferred_value,
         section_headers=list(item.get("section_headers", [])),
         figure_captions=list(item.get("figure_captions", [])),
         table_captions=list(item.get("table_captions", [])),
@@ -129,6 +146,7 @@ def _make_rich_record(item: dict) -> RichReviewPaperRecord:
         compared_methods=list(item.get("baseline_candidates", [])),
         borrowing_value=caveat,
         sharp_commentary="Published rich review auto-generated from local PDF enrich + metadata signals.",
+        inspiration_notes="优先借鉴方法设计与实验对比框架；缺失字段处请回看全文再落地。",
         note_links=[],
     )
 

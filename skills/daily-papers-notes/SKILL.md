@@ -42,8 +42,10 @@ description: |
 ## 前置检查
 
 1. 检查 `/tmp/daily_review_merged.json` 是否存在
-2. 检查今天的推荐文件 `{DAILY_PAPERS_PATH}/YYYY-MM-DD-论文推荐.md` 是否存在（用于回填）
-3. 如果任一不存在，告知用户需要先运行 merge 和 review 阶段，然后停止
+2. 如果今天推荐文件 `{DAILY_PAPERS_PATH}/YYYY-MM-DD-论文推荐.md` 不存在，不要直接失败：
+   - 先调用 `skills/daily-papers/render/render_daily_recommendation.py --mode final`
+   - 仅当渲染失败时才提示用户修复
+3. 如果 merged 不存在，告知用户先运行 merge 和 review 阶段，然后停止
 
 ## 工作流程
 
@@ -77,7 +79,11 @@ description: |
    - 对已有 `📒 **笔记**` 标记的论文，用 Glob 找到对应笔记文件，检查行数
    - **行数 < 100 的视为骨架笔记，必须重新生成**（删除旧文件，重新调用 paper-reader）
    - 行数 >= 100 且包含 `## 关键公式` 和 `## 关键图表` 的才算合格，可以跳过
-3. 对每篇需要生成/重新生成的论文，使用 Task agent 调用 `/paper-reader` skill（传入 arXiv 链接）
+3. 对每篇需要生成/重新生成的论文，使用 Task agent 调用 `/paper-reader` skill，输入路由规则固定为：
+   - 优先使用 `preferred_fulltext_input_type` + `preferred_fulltext_input_value`
+   - 若 `preferred_fulltext_input_type=local_pdf`，直接传本地 PDF 路径
+   - 若 `preferred_fulltext_input_type=arxiv_url|pdf_url|doi_url`，传对应 URL
+   - 若字段缺失，则回退：`local_pdf_paths[0]` -> `url` -> 标题检索 Zotero
 4. 笔记生成后，paper-reader 会自动补充概念库，无需重复
 
 > **铁律**：不论论文数量多少，"必读"的论文**全部**生成笔记，一篇不能少。
@@ -169,6 +175,7 @@ cd {VAULT_PATH} && git add -A && git commit -m "daily papers: notes YYYY-MM-DD"
 - 如果 `/tmp/daily_review_merged.json` 不存在，必须先运行 merge 阶段
 - `/paper-reader` skill 会自动处理概念库补充，不要重复创建
 - 仅为"必读"论文生成笔记，"值得看"不生成，耗时正常，**不是跳过的理由**
+- 对 Published must-read，如果有本地 PDF，必须优先本地 PDF 输入，不要默认走 arXiv 链接
 - 默认自动刷新目录页，但默认不做 git commit / push
 - **绝对禁止**以下偷懒行为：
   - 自己手写 70 行骨架笔记代替 paper-reader 输出

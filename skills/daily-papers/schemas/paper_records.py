@@ -96,6 +96,9 @@ class RichReviewPaperRecord(LiteReviewPaperRecord):
     evidence_scope: Literal["enriched_metadata_or_pdf"] = "enriched_metadata_or_pdf"
 
     local_pdf_paths: list[str] = field(default_factory=list)
+    zotero_attachment_paths: list[str] = field(default_factory=list)
+    preferred_fulltext_input_type: str = ""
+    preferred_fulltext_input_value: str = ""
     section_headers: list[str] = field(default_factory=list)
     figure_captions: list[str] = field(default_factory=list)
     table_captions: list[str] = field(default_factory=list)
@@ -117,6 +120,7 @@ class RichReviewPaperRecord(LiteReviewPaperRecord):
     compared_methods: list[str] = field(default_factory=list)
     borrowing_value: str = ""
     sharp_commentary: str = ""
+    inspiration_notes: str = ""
     note_links: list[str] = field(default_factory=list)
 
 
@@ -134,6 +138,7 @@ FIELD_SOURCE_NOTES: dict[str, dict[str, str]] = {
     },
     "RichReviewPaperRecord": {
         "local_pdf_paths": "User-provided local PDFs / Zotero attachment paths.",
+        "preferred_fulltext_input_*": "Merge/downstream hint for notes/paper-reader input routing.",
         "section_headers/figure_captions/table_captions": "PDF/preprint enrich extractors.",
         "method_* / experiment_*": "Enrich extractors from PDF/HTML content.",
         "missing_field_report": "Explicit extraction failures and reasons (no fabrication).",

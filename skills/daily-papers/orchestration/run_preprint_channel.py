@@ -206,6 +206,15 @@ def _to_rich_review(records: list[dict], rich_n: int) -> list[RichReviewPaperRec
             lite_reasoning="preprint channel enters rich review directly after enrich",
             recommended_for_pdf=False,
             local_pdf_paths=[],
+            zotero_attachment_paths=[],
+            preferred_fulltext_input_type=(
+                "arxiv_url" if rec.get("source") == "arxiv" else "pdf_url"
+            ),
+            preferred_fulltext_input_value=(
+                rec.get("url", "")
+                if rec.get("source") == "arxiv"
+                else rec.get("pdf_url", "") or rec.get("url", "")
+            ),
             section_headers=list(rec.get("section_headers", [])),
             figure_captions=list(rec.get("figure_captions", [])),
             table_captions=list(rec.get("table_captions", [])),
@@ -224,6 +233,7 @@ def _to_rich_review(records: list[dict], rich_n: int) -> list[RichReviewPaperRec
             compared_methods=list(rec.get("baseline_candidates", [])),
             borrowing_value="Derived from enriched metadata cues; verify with full text before citation-level claims.",
             sharp_commentary="Auto-generated rich triage from enriched preprint signals; not a full manual review.",
+            inspiration_notes="优先借鉴可迁移的方法组件；涉及具体结果时回看原文细节。",
             note_links=[],
         )
         out.append(record)

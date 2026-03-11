@@ -23,10 +23,10 @@ DEFAULT_CONFIG = {
         "backend": "paper_fetcher",
         "recall_n": 200,
         "lite_n": 50,
-        "pdf_n": 50,
+        "pdf_n": 20,
         "rich_n": 20,
+        "auto_continue_without_pdf": False,
         "providers": [
-            "semantic_scholar",
             "openalex",
             "crossref",
             "pubmed",
@@ -93,7 +93,6 @@ DEFAULT_CONFIG = {
                 "sim-to-real",
             ],
             "source_preferences": {
-                "semantic_scholar": 1.0,
                 "openalex": 1.0,
                 "crossref": 1.0,
                 "pubmed": 0.2,
@@ -135,7 +134,6 @@ DEFAULT_CONFIG = {
                 "causal mechanism",
             ],
             "source_preferences": {
-                "semantic_scholar": 1.0,
                 "openalex": 1.0,
                 "crossref": 0.9,
                 "pubmed": 1.2,

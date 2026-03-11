@@ -12,9 +12,18 @@ run_daily_pipeline
   ├─ Published 前半段
   │   ├─ paper_fetcher_adapter (multi-source metadata)
   │   ├─ metadata/domain ranker
+  │   ├─ zotero handoff export (RIS/Bib/DOI)
   │   └─ /tmp/published_raw_200.json
   │      /tmp/published_lite_50.json
   │      /tmp/published_pdf_candidates_20.json
+  │      /tmp/published_top20.ris
+  │      /tmp/published_top20.bib
+  │      /tmp/published_top20_doi.txt
+  │
+  ├─ Pause/Resume 状态机
+  │   ├─ /tmp/pipeline_state.json
+  │   ├─ stage=awaiting_published_pdf_import
+  │   └─ resume: skills/daily-papers/state/resume_published.py
   │
   ├─ Published 后半段
   │   ├─ published_enrich_from_pdf
@@ -34,6 +43,11 @@ run_daily_pipeline
            ├─ rich_reviewed_pool
            └─ legacy_compatible_pool (for notes/reader compatibility)
 ```
+
+推荐页渲染：
+
+- interim: `skills/daily-papers/render/render_daily_recommendation.py --mode interim`
+- final: `skills/daily-papers/render/render_daily_recommendation.py --mode final`
 
 ## 统一 Schema
 
@@ -117,6 +131,21 @@ final_meta_score =
 - `/tmp/published_raw_200.json`
 - `/tmp/published_lite_50.json`
 - `/tmp/published_pdf_candidates_20.json`
+- `/tmp/published_top20.ris`
+- `/tmp/published_top20.bib`
+- `/tmp/published_top20_doi.txt`
+
+### Pause / Resume
+
+- 默认第一次运行会暂停在 Published PDF 人工检查点
+- 状态文件：`/tmp/pipeline_state.json`
+- 必填状态字段：
+  - `stage=awaiting_published_pdf_import`
+  - `expected_pdf_count`
+  - `zotero_export_files`
+  - `resume_command`
+- 恢复命令：`python skills/daily-papers/state/resume_published.py`
+- 可选全自动：`published_channel.auto_continue_without_pdf=true`
 
 ## review-lite / review-rich 边界
 
@@ -194,6 +223,13 @@ final_meta_score =
 - `rich_reviewed_pool`（新主数据）
 - `legacy_compatible_pool`（给 notes/reader 的兼容字段）
 
+下游路由兼容字段：
+
+- `local_pdf_paths`
+- `zotero_attachment_paths`
+- `preferred_fulltext_input_type`
+- `preferred_fulltext_input_value`
+
 `daily-papers-notes` 已改为默认读取 merged 结果，且默认只处理“必读”。
 
 ## 旧模块新角色
@@ -205,16 +241,9 @@ final_meta_score =
 ## 最小可运行 Demo
 
 ```bash
-python skills/daily-papers/orchestration/run_published_channel.py
-python skills/daily-papers/orchestration/run_preprint_channel.py
-python skills/daily-papers/orchestration/run_published_rich_channel.py
-python skills/daily-papers/merge/merge_reviewed_papers.py
-```
-
-或一键串行：
-
-```bash
 python skills/daily-papers/orchestration/run_daily_pipeline.py
+# -> pause at awaiting_published_pdf_import
+python skills/daily-papers/state/resume_published.py
 ```
 
 ## 已实现 vs MVP 边界 vs 后续增强
@@ -237,5 +266,4 @@ python skills/daily-papers/orchestration/run_daily_pipeline.py
 
 - PDF 解析从 `pdftotext` 启发式升级到版面感知解析
 - 将 review-lite / review-rich 的文本点评自动化脚本化
-- 增加断点恢复状态机（phase checkpoint）
 - 增加端到端回归测试和样例数据集

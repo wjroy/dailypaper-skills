@@ -1,10 +1,10 @@
 ---
 name: daily-papers
 description: |
-  每日论文推荐的一句话总入口（v2 双通道）。用户说“今日论文推荐”“过去3天论文推荐”“过去一周论文推荐”
+  每日论文推荐的一句话总入口（v2 双通道 + pause/resume）。用户说“今日论文推荐”“过去3天论文推荐”“过去一周论文推荐”
   “最近3天论文”“看看这周有啥论文”时使用。
 
-  内部会自动串联 Published + Preprint 双通道与 merge，再进入 notes。
+  默认会在 Published PDF 检查点暂停，待用户 Zotero 手动下载 PDF 后再恢复继续。
 ---
 
 # 每日论文推荐
@@ -21,13 +21,15 @@ description: |
    - `今日论文推荐`、`每日推荐`、`今日论文` -> 当天
    - `过去3天论文推荐`、`最近3天论文` -> 3 天
    - `过去一周论文推荐`、`看看这周有啥论文` -> 7 天
-2. 优先调用 `skills/daily-papers/orchestration/run_published_channel.py`。
-3. 调用 `skills/daily-papers/orchestration/run_preprint_channel.py`。
-4. 调用 `skills/daily-papers/orchestration/run_published_rich_channel.py`。
-5. 调用 `skills/daily-papers/merge/merge_reviewed_papers.py`。
-6. 最后再调用 `/daily-papers-notes`（默认只处理“必读”）。
-7. 全部完成后，用一句话告诉用户：
-   - 推荐文件已生成
+2. 首次运行调用 `skills/daily-papers/orchestration/run_daily_pipeline.py`。
+3. 如果返回 `awaiting_published_pdf_import`：
+   - 明确告诉用户已暂停（这是预期行为）
+   - 告知 Zotero 导入文件路径（RIS/Bib/DOI）
+   - 告知恢复命令：`python skills/daily-papers/state/resume_published.py`
+4. 用户完成 PDF 下载后，调用 `resume_published.py` 继续。
+5. 恢复完成后再调用 `/daily-papers-notes`（默认只处理“必读”）。
+6. 全部完成后，用一句话告诉用户：
+   - final 推荐文件已生成
    - 重点论文笔记已生成多少篇
    - 目录页是否已自动刷新
 
@@ -36,6 +38,7 @@ description: |
 - 不要先要求用户手动跑 `跑一下论文抓取 / 点评 / 笔记`。
 - 这些命令是内部流水线和调试入口，不是首页主交互。
 - 如果用户明确只想跑其中一步，再交给对应 skill。
+- 只有在 `published_channel.auto_continue_without_pdf=true` 时，才允许跳过人工 PDF 检查点自动继续。
 
 ## 自动化
 

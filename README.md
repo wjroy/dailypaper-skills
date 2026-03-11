@@ -118,7 +118,7 @@ mkdir -p "$VAULT/DailyPapers" \
 
 当前主线升级为双通道论文发现：
 
-1. **Published 通道**：`paper-fetcher` 多源 metadata 召回（默认 200）-> metadata-first 评分 -> top50 lite -> top20 PDF 候选 -> PDF enrich -> rich review。
+1. **Published 通道**：`paper-fetcher` 多源 metadata 召回（默认 200）-> metadata-first 评分 -> top50 lite -> top20 PDF 候选 -> （暂停，等待 Zotero 手动拿 PDF）-> PDF enrich -> rich review。
 2. **Preprint 通道**：`arXiv / bioRxiv / adaptive` 抓取 -> enrich -> rich review（默认 top20）。
 3. **汇合层**：两个 rich reviewed pool 合并成 `/tmp/daily_review_merged.json`，再给 notes / reader / MOC 使用。
 
@@ -166,15 +166,25 @@ mkdir -p "$VAULT/DailyPapers" \
 ## 🧪 最小可运行 Demo
 
 ```bash
-python skills/daily-papers/orchestration/run_published_channel.py
-python skills/daily-papers/orchestration/run_preprint_channel.py
-python skills/daily-papers/orchestration/run_published_rich_channel.py
-python skills/daily-papers/merge/merge_reviewed_papers.py
+# 第一次运行（会停在 Published PDF 检查点）
+python skills/daily-papers/orchestration/run_daily_pipeline.py
+
+# 导入并下载 PDF 后恢复
+python skills/daily-papers/state/resume_published.py
 ```
 
-一键串行（实验态）：
+首次暂停时会生成 Zotero handoff 文件：
+
+```text
+/tmp/published_top20.ris
+/tmp/published_top20.bib
+/tmp/published_top20_doi.txt
+```
+
+可选全自动（不等 PDF，低置信继续）：
 
 ```bash
+# 在 user-config.json 打开 published_channel.auto_continue_without_pdf=true
 python skills/daily-papers/orchestration/run_daily_pipeline.py
 ```
 
@@ -194,7 +204,8 @@ python skills/daily-papers/orchestration/run_daily_pipeline.py
 
 **可以一步跑完整流程吗？**
 
-可以。直接说 `今日论文推荐` 就行。内部拆成三步主要是为了避免单次上下文过长，同时方便单步调试和重跑。
+默认会在 Published PDF 检查点暂停（这是设计行为）。先导入 Zotero 并手动下载 PDF，再执行 `resume_published.py` 继续。
+如果你明确要强制全自动，可将 `published_channel.auto_continue_without_pdf=true`，但 Published rich 会带低置信度标记。
 
 **目录页会自动刷新吗？**
 

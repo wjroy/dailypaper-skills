@@ -153,7 +153,9 @@ def fetch_published_raw_records(
     aggregator, mode = _load_search_aggregator()
     # Unpaywall in paper-fetcher performs per-record DOI lookups and can make
     # 200-recall runs unstable/slow; keep OA signals from OpenAlex/S2 in Phase 2.
-    effective_providers = [p for p in providers if p != "unpaywall"]
+    effective_providers = [
+        p for p in providers if p not in {"unpaywall", "semantic_scholar"}
+    ]
     if not effective_providers:
         effective_providers = providers
 

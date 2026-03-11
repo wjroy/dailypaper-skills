@@ -1,22 +1,21 @@
 {
   "paths": {
-    "obsidian_vault": "~/ObsidianVault",
+    "obsidian_vault": "C:\\Users\\win\\Documents\\ObsidianVault",
     "paper_notes_folder": "论文笔记",
     "daily_papers_folder": "DailyPapers",
     "concepts_folder": "_概念",
-    "zotero_db": "~/Zotero/zotero.sqlite",
-    "zotero_storage": "~/Zotero/storage"
+    "zotero_db": "C:\\Users\\win\\Zotero\\zotero.sqlite",
+    "zotero_storage": "C:\\Users\\win\\Zotero\\storage"
   },
-  "active_domain": "intelligent_construction",
+  "active_domain": "geo_timeseries_fm",
   "published_channel": {
     "enabled": true,
     "backend": "paper_fetcher",
     "recall_n": 200,
     "lite_n": 50,
-    "pdf_n": 50,
+    "pdf_n": 20,
     "rich_n": 20,
     "providers": [
-      "semantic_scholar",
       "openalex",
       "crossref",
       "pubmed",
@@ -48,6 +47,73 @@
     }
   },
   "domain_profiles": {
+    "geo_timeseries_fm": {
+      "queries": [
+        "geotechnical time series forecasting",
+        "deep excavation deformation prediction",
+        "foundation pit settlement prediction",
+        "tunnel settlement spatiotemporal forecasting",
+        "uncertainty-aware geotechnical forecasting foundation model"
+      ],
+      "positive_keywords": [
+        "geotechnical",
+        "deep excavation",
+        "foundation pit",
+        "tunnel settlement",
+        "deformation prediction",
+        "time series forecasting",
+        "spatiotemporal forecasting",
+        "uncertainty-aware",
+        "probabilistic forecasting",
+        "interval prediction",
+        "quantile prediction",
+        "foundation model",
+        "pretrained model",
+        "large time-series model",
+        "risk assessment",
+        "early warning"
+      ],
+      "negative_keywords": [
+        "medical imaging",
+        "clinical",
+        "genomics",
+        "protein",
+        "drug discovery",
+        "epidemic",
+        "monsoon",
+        "rocket",
+        "ignition",
+        "humanoid locomotion",
+        "robotic manipulation",
+        "speech synthesis",
+        "speech recognition",
+        "audio generation",
+        "financial forecasting",
+        "stock market",
+        "trading",
+        "text-to-sql",
+        "gui agent"
+      ],
+      "boost_keywords": [
+        "field monitoring",
+        "site data",
+        "inclinometer",
+        "settlement",
+        "displacement",
+        "uncertainty quantification",
+        "probabilistic risk",
+        "warning threshold"
+      ],
+      "source_preferences": {
+        "openalex": 1.1,
+        "crossref": 1.0,
+        "pubmed": 0.1,
+        "europe_pmc": 0.1,
+        "arxiv": 1.2,
+        "biorxiv": 0.1
+      },
+      "preprint_source": "arxiv"
+    },
     "intelligent_construction": {
       "queries": [
         "intelligent construction",
@@ -83,7 +149,6 @@
         "sim-to-real"
       ],
       "source_preferences": {
-        "semantic_scholar": 1.0,
         "openalex": 1.0,
         "crossref": 1.0,
         "pubmed": 0.2,
@@ -125,7 +190,6 @@
         "causal mechanism"
       ],
       "source_preferences": {
-        "semantic_scholar": 1.0,
         "openalex": 1.0,
         "crossref": 0.9,
         "pubmed": 1.2,

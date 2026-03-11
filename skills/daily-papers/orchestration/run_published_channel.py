@@ -14,8 +14,9 @@ SHARED_DIR = DAILY_PAPERS_DIR.parent / "_shared"
 ADAPTERS_DIR = DAILY_PAPERS_DIR / "adapters"
 RANKING_DIR = DAILY_PAPERS_DIR / "ranking"
 SCHEMAS_DIR = DAILY_PAPERS_DIR / "schemas"
+EXPORT_DIR = DAILY_PAPERS_DIR / "export"
 
-for p in (SHARED_DIR, ADAPTERS_DIR, RANKING_DIR, SCHEMAS_DIR):
+for p in (SHARED_DIR, ADAPTERS_DIR, RANKING_DIR, SCHEMAS_DIR, EXPORT_DIR):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
@@ -23,6 +24,7 @@ from domain_ranker import provider_preference_multiplier, score_relevance
 from metadata_ranker import compute_final_meta_score
 from paper_fetcher_adapter import fetch_published_raw_records
 from paper_records import LiteReviewPaperRecord, RawPaperRecord
+from export_zotero_bundle import export_zotero_bundle
 from user_config import active_domain, active_domain_profile, published_channel_config
 
 
@@ -84,8 +86,7 @@ def run() -> dict:
 
     recall_n = int(config.get("recall_n", 200))
     lite_n = int(config.get("lite_n", 50))
-    # Phase 2 output contract requires top20 PDF candidates file.
-    pdf_candidate_n = 20
+    pdf_candidate_n = int(config.get("pdf_n", 20))
 
     raw_records, adapter_info = fetch_published_raw_records(
         query=query,
@@ -160,6 +161,7 @@ def run() -> dict:
     _safe_write_json(
         PDF_CANDIDATES_PATH, [asdict(r) for r in lite_records if r.recommended_for_pdf]
     )
+    zotero_bundle = export_zotero_bundle(PDF_CANDIDATES_PATH)
 
     return {
         "status": "ok",
@@ -172,10 +174,14 @@ def run() -> dict:
             "lite": len(lite_records),
             "pdf_candidates": len(pdf_ids),
         },
+        "zotero_handoff": zotero_bundle,
         "outputs": {
             "published_raw_200": str(RAW_PATH),
             "published_lite_50": str(LITE_PATH),
             "published_pdf_candidates_20": str(PDF_CANDIDATES_PATH),
+            "published_top20_ris": zotero_bundle["files"]["ris"],
+            "published_top20_bib": zotero_bundle["files"]["bib"],
+            "published_top20_doi": zotero_bundle["files"]["doi_txt"],
         },
     }
 
