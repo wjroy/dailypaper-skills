@@ -18,8 +18,8 @@
 ## 图片
 
 - 优先保留对理解最关键的方法图和结果图
-- 必须同时保留 `关键图示 (Key Figures)` 和 `全部候选图 (All Candidate Figures)`，但允许轻量展示
-- embedded extraction 不稳定时，自动降级到 rendered page fallback 或 text-only placeholder
+- 使用统一的 `Figures` 区块表达图像覆盖状态
+- embedded extraction 不稳定时，自动降级到部分图像模式或无图回退模式
 - 无法干净裁剪时保留 full-page render，而不是跳过
 - 图片必须保存到输出根目录下的 `assets/papers/<paper_id>/figures/`
 - 笔记里统一使用相对 wiki-link，不能写本机绝对路径
@@ -34,13 +34,12 @@
 
 - [ ] `Research Problem` 已写
 - [ ] `Method Summary` 已写
-- [ ] `关键图示 (Key Figures)` 已写或已记录缺失
-- [ ] `全部候选图 (All Candidate Figures)` 已写或已记录缺失
+- [ ] `Figures` 已写或已记录缺失
 - [ ] `Key Formula` 已写或已记录缺失
 - [ ] `Main Findings` 已写
 - [ ] `Limitations` 已写
 - [ ] `Inspiration for My Research` 已写
 - [ ] `Source Notes` 已写
-- [ ] 若启用了图像增强，`figure_manifest.json` 已生成；否则已写明 text-only 状态
+- [ ] 若启用了图像增强，`figure_manifest.json` 已生成；否则已写明无图回退状态
 - [ ] 图片/公式/表格的缺失已记录
 - [ ] `extraction_confidence` 已填写

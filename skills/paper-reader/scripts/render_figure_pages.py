@@ -21,7 +21,9 @@ from _figure_common import (
 )
 
 
-def should_trigger_fallback(embedded_records: list[dict], page_hits: dict[int, list[str]]) -> tuple[bool, list[str]]:
+def should_trigger_fallback(
+    embedded_records: list[dict], page_hits: dict[int, list[str]]
+) -> tuple[bool, list[str]]:
     reasons: list[str] = []
     extracted_count = len(embedded_records)
     figure_like_pages = len(page_hits)
@@ -42,7 +44,9 @@ def should_trigger_fallback(embedded_records: list[dict], page_hits: dict[int, l
     return (len(reasons) > 0, reasons)
 
 
-def _render_with_pymupdf(pdf_path: Path, figures_dir: Path, pages_to_render: list[int], pages: list[str]) -> tuple[list[dict], str]:
+def _render_with_pymupdf(
+    pdf_path: Path, figures_dir: Path, pages_to_render: list[int], pages: list[str]
+) -> tuple[list[dict], str]:
     try:
         import fitz  # type: ignore
     except Exception as exc:
@@ -52,7 +56,9 @@ def _render_with_pymupdf(pdf_path: Path, figures_dir: Path, pages_to_render: lis
     try:
         with fitz.open(str(pdf_path)) as doc:
             for render_index, page_number in enumerate(pages_to_render, start=1):
-                page_text = pages[page_number - 1] if page_number - 1 < len(pages) else ""
+                page_text = (
+                    pages[page_number - 1] if page_number - 1 < len(pages) else ""
+                )
                 role = estimate_role(extract_caption_snippet(page_text), page_text)
                 role_slug = slugify(role, default="unknown")
                 filename = f"fig_{role_slug}_fullpage_p{page_number:02d}_{render_index:02d}.png"
@@ -71,8 +77,11 @@ def _render_with_pymupdf(pdf_path: Path, figures_dir: Path, pages_to_render: lis
                         "height": height,
                         "caption_snippet": extract_caption_snippet(page_text),
                         "estimated_role": role,
-                        "include_in_key_figures": role in {"framework", "method", "result"},
-                        "extraction_confidence": "medium" if role in {"framework", "method", "result"} else "low",
+                        "include_in_key_figures": role
+                        in {"framework", "method", "result"},
+                        "extraction_confidence": "medium"
+                        if role in {"framework", "method", "result"}
+                        else "low",
                         "page_keyword_hits": page_keyword_hits(page_text),
                     }
                 )
@@ -81,7 +90,9 @@ def _render_with_pymupdf(pdf_path: Path, figures_dir: Path, pages_to_render: lis
     return rendered_records, ""
 
 
-def _render_with_pdftoppm(pdf_path: Path, figures_dir: Path, pages_to_render: list[int], pages: list[str]) -> tuple[list[dict], str]:
+def _render_with_pdftoppm(
+    pdf_path: Path, figures_dir: Path, pages_to_render: list[int], pages: list[str]
+) -> tuple[list[dict], str]:
     if not command_exists("pdftoppm"):
         return [], "pdftoppm is not available"
     rendered_records: list[dict] = []
@@ -90,16 +101,18 @@ def _render_with_pdftoppm(pdf_path: Path, figures_dir: Path, pages_to_render: li
         role = estimate_role(extract_caption_snippet(page_text), page_text)
         role_slug = slugify(role, default="unknown")
         prefix = figures_dir / f"render_page_{page_number:02d}"
-        proc = run_command([
-            "pdftoppm",
-            "-png",
-            "-f",
-            str(page_number),
-            "-l",
-            str(page_number),
-            str(pdf_path),
-            str(prefix),
-        ])
+        proc = run_command(
+            [
+                "pdftoppm",
+                "-png",
+                "-f",
+                str(page_number),
+                "-l",
+                str(page_number),
+                str(pdf_path),
+                str(prefix),
+            ]
+        )
         if proc.returncode != 0:
             continue
         generated = sorted(figures_dir.glob(f"render_page_{page_number:02d}-*.png"))
@@ -121,7 +134,9 @@ def _render_with_pdftoppm(pdf_path: Path, figures_dir: Path, pages_to_render: li
                 "caption_snippet": extract_caption_snippet(page_text),
                 "estimated_role": role,
                 "include_in_key_figures": role in {"framework", "method", "result"},
-                "extraction_confidence": "medium" if role in {"framework", "method", "result"} else "low",
+                "extraction_confidence": "medium"
+                if role in {"framework", "method", "result"}
+                else "low",
                 "page_keyword_hits": page_keyword_hits(page_text),
             }
         )
@@ -135,20 +150,28 @@ def render_pages(pdf_path: Path, paper_id: str) -> dict:
     embedded_records = list(embedded_payload.get("records", []))
 
     pages = pdftotext_pages(pdf_path)
-    page_hits = {index + 1: page_keyword_hits(text) for index, text in enumerate(pages) if page_keyword_hits(text)}
+    page_hits = {
+        index + 1: page_keyword_hits(text)
+        for index, text in enumerate(pages)
+        if page_keyword_hits(text)
+    }
     should_render, reasons = should_trigger_fallback(embedded_records, page_hits)
 
     pages_to_render = sorted(page_hits)[:3] if should_render else []
-    rendered_records, pymupdf_error = _render_with_pymupdf(pdf_path, figures_dir, pages_to_render, pages)
-    backend = "pymupdf" if rendered_records else "none"
-    message = pymupdf_error
+    rendered_records, poppler_error = _render_with_pdftoppm(
+        pdf_path, figures_dir, pages_to_render, pages
+    )
+    backend = "pdftoppm" if rendered_records else "none"
+    message = poppler_error
     if not rendered_records and pages_to_render:
-        rendered_records, poppler_error = _render_with_pdftoppm(pdf_path, figures_dir, pages_to_render, pages)
+        rendered_records, pymupdf_error = _render_with_pymupdf(
+            pdf_path, figures_dir, pages_to_render, pages
+        )
         if rendered_records:
-            backend = "pdftoppm"
+            backend = "pymupdf_page_snapshot"
             message = ""
         else:
-            message = "; ".join(part for part in [pymupdf_error, poppler_error] if part)
+            message = "; ".join(part for part in [poppler_error, pymupdf_error] if part)
 
     payload = {
         "status": "ok" if rendered_records or not should_render else "skipped",
@@ -174,7 +197,10 @@ def main() -> None:
     pdf_path = Path(args.pdf_path).expanduser().resolve()
     paper_id = paper_id_from_inputs(args.paper_id, pdf_path)
     payload = render_pages(pdf_path, paper_id)
-    print(payload.get("message") or f"rendered fallback pages: {payload.get('rendered_count', 0)}")
+    print(
+        payload.get("message")
+        or f"rendered fallback pages: {payload.get('rendered_count', 0)}"
+    )
 
 
 if __name__ == "__main__":

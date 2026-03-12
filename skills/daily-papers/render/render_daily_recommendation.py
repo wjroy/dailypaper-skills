@@ -121,6 +121,11 @@ def _note_link(item: dict) -> str:
             text = str(link).strip()
             if text:
                 return text
+    status = str(item.get("note_status", "")).strip().lower()
+    if status == "text_note":
+        return "文本笔记已生成"
+    if status == "note_pending":
+        return "note pending"
     return "未回填"
 
 
@@ -232,9 +237,13 @@ def _resolve_note_figure(item: dict) -> str | None:
         return None
     note_path = candidate_paths[0]
     content = note_path.read_text(encoding="utf-8", errors="ignore")
-    key_section = re.search(
-        r"## 关键图示 \(Key Figures\)\n(.*?)(?=\n## |\Z)", content, re.DOTALL
-    )
+    key_section = re.search(r"## Figures\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
+    if not key_section:
+        key_section = re.search(
+            r"## 关键图示 \(Key Figures\)\n(.*?)(?=\n## |\Z)",
+            content,
+            re.DOTALL,
+        )
     if not key_section:
         return None
     wiki_links = re.findall(r"!\[\[([^\]]+\.png)\]\]", key_section.group(1))
@@ -251,7 +260,7 @@ def _resolve_thumbnail(item: dict) -> str | None:
         return None
 
     manifest = _figure_manifest(item)
-    if str(manifest.get("image_mode", "")).lower() == "text_only":
+    if str(manifest.get("image_mode", "")).lower() == "none":
         return None
     figures = list(manifest.get("figures", [])) if isinstance(manifest, dict) else []
     if figures:
@@ -284,8 +293,8 @@ def _resolve_thumbnail(item: dict) -> str | None:
 
 def _image_coverage_summary(item: dict) -> str:
     manifest = _figure_manifest(item)
-    if str(manifest.get("image_mode", "")).lower() == "text_only":
-        return "未提取（text-only）"
+    if str(manifest.get("image_mode", "")).lower() == "none":
+        return "未提取"
     figures = list(manifest.get("figures", [])) if isinstance(manifest, dict) else []
     if figures:
         has_method = any(
@@ -298,9 +307,9 @@ def _image_coverage_summary(item: dict) -> str:
         if has_method and has_result:
             return "方法图✓ 结果图✓"
         if has_method:
-            return "仅方法图✓"
+            return "方法图✓ 结果图-"
         if has_result:
-            return "方法图△ 结果图✓"
+            return "方法图- 结果图✓"
         return "无稳定关键图，详见笔记"
 
     figure_dir = _figure_dir(item)
@@ -311,9 +320,9 @@ def _image_coverage_summary(item: dict) -> str:
         if has_method and has_result:
             return "方法图✓ 结果图△"
         if has_method:
-            return "仅方法图✓"
+            return "方法图✓ 结果图-"
         if has_result:
-            return "仅结果图✓"
+            return "方法图- 结果图✓"
     if _note_link(item) != "未回填":
         return "无稳定关键图，详见笔记"
     return "暂无图像信息"
@@ -382,7 +391,7 @@ def _render_item_card(item: dict, idx: int, mode: str) -> list[str]:
         lines.append(f"- **核心方法**: {_core_method(item)}")
         lines.append(f"- **核心创新**: {_core_innovation(item)}")
         lines.append(f"- **借鉴意义**: {_borrowing_value(item)}")
-        lines.append(f"- **图像笔记**: {_note_link(item)}")
+        lines.append(f"- **研究笔记**: {_note_link(item)}")
         lines.append(f"- **图像覆盖**: {_image_coverage_summary(item)}")
     elif mode == "final" and decision_raw == "worth_reading":
         lines.append(f"- **核心方法**: {_core_method(item)}")
@@ -417,8 +426,8 @@ def render_interim() -> dict:
         "# 每日论文推荐（Interim）",
         "",
         f"- 日期: {datetime.now().date().isoformat()}",
-        "- 状态: Published 通道等待本地 PDF（Zotero 手动获取中）",
-        "- 说明: 当前页面基于 Preprint rich + Published lite 生成，Published 结论仅为 metadata-first 分诊。",
+        "- 状态: Published PDF pending",
+        "- 说明: 当前页面先交付可用推荐；补充 PDF 后重新运行 daily-papers 即可补全深度分析。",
         "",
         "## Preprint 通道（已完成 rich review）",
         "",
@@ -455,7 +464,7 @@ def render_final() -> dict:
         "# 每日论文推荐（Final）",
         "",
         f"- 日期: {datetime.now().date().isoformat()}",
-        "- 状态: 双通道 rich review 已合并",
+        "- 状态: 推荐已完成",
         "- 说明: 本页面是导航页 + 决策页 + 轻视觉摘要页；只给 must_read 条目展示 1 张缩略关键图。",
         "",
         "## Published 通道（rich）",

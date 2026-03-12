@@ -193,10 +193,34 @@ def _source_notes(
     return [
         f"Full-text route: {route}",
         f"Full-text source: {route_value or 'unavailable'}",
-        f"Figure manifest: {image_status}",
-        f"Image enhancement: {image_status}",
+        f"Figures mode: {image_status}",
         f"Extraction notes: {'; '.join(_listify(record.get('extraction_notes'))) or 'No extra extraction notes'}",
     ]
+
+
+def _figures_placeholder(image_status: str) -> list[str]:
+    lines = ["## Figures", ""]
+    if image_status == "none":
+        lines.extend(
+            [
+                "图像覆盖：未提取",
+                "建议关注图：",
+                "- 方法框架图",
+                "- 主结果图",
+            ]
+        )
+        return lines
+    if image_status == "partial":
+        lines.extend(
+            [
+                "图像覆盖：方法图✓ 结果图-",
+                "关键图：待图像增强阶段补充",
+                "- 缺失图像：结果图",
+            ]
+        )
+        return lines
+    lines.extend(["图像覆盖：方法图✓ 结果图✓", "关键图：待图像增强阶段补充"])
+    return lines
 
 
 def _render_note(
@@ -281,26 +305,10 @@ def _render_note(
         "",
     ]
     lines.extend([f"- {item}" for item in key_components])
+    lines.extend([""])
+    lines.extend(_figures_placeholder(image_status))
     lines.extend(
         [
-            "",
-            "## 关键图示 (Key Figures)",
-            "",
-            f"- 图像模式: {image_status}",
-            "- 图像覆盖: 待图像增强阶段补充；若不可用则保持 text-only。",
-            "",
-            "### 方法 / 框架图",
-            "",
-            "- 未提取时保留简洁状态说明，不阻断正文研究笔记。",
-            "",
-            "### 核心结果图",
-            "",
-            "- 成功提取时优先保留 1 张最关键结果图；失败时写明缺失。",
-            "",
-            "## 全部候选图 (All Candidate Figures)",
-            "",
-            "- 图像覆盖：待补充",
-            "- 建议关注图：方法框架图、模型结构图、主结果图",
             "",
             "## Key Formula",
             "",
@@ -384,22 +392,22 @@ def run_reader(
     note_path.parent.mkdir(parents=True, exist_ok=True)
 
     state = load_state()
-    image_status = "text_only"
+    image_status = "none"
     note_text = _render_note(payload, pdf_path, resolved_paper_id, text, image_status)
     note_path.write_text(note_text, encoding="utf-8")
 
     image_result: dict[str, Any] | None = None
     if pdf_path and state.get("user_opt_in") == "yes" and state.get("backend_ready"):
         image_result = run_pipeline(pdf_path, resolved_paper_id, note_path)
-        image_status = str(image_result.get("image_mode", "text_only"))
+        image_status = str(image_result.get("image_mode", "none"))
     else:
         image_result = {
             "status": "skipped",
-            "image_mode": "text_only",
-            "reason": "Image enhancement not enabled or backend unavailable",
+            "image_mode": "none",
+            "reason": "Image enhancement skipped",
         }
 
-    if image_status != "text_only":
+    if image_status != "none":
         note_text = note_path.read_text(encoding="utf-8")
     else:
         note_text = _render_note(
@@ -412,6 +420,7 @@ def run_reader(
         "paper_id": resolved_paper_id,
         "note_path": str(note_path),
         "text_ready": True,
+        "note_mode": "text_only" if image_status == "none" else "image_enhanced",
         "image": image_result,
         "needs_image_setup_prompt": state.get("user_opt_in") == "unknown",
         "recommended_image_setup_prompt": "检测到这是你首次使用论文图像增强功能。我可以做一次性初始化，后续可自动补充关键方法图和结果图。本次即使不配置，我也会先正常输出论文研究笔记。是否现在配置？",

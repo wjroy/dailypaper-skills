@@ -55,8 +55,7 @@
 - `## One-Line Summary`
 - `## Research Problem`
 - `## Method Summary`
-- `## 关键图示 (Key Figures)`
-- `## 全部候选图 (All Candidate Figures)`
+- `## Figures`
 - `## Key Formula`
 - `## Main Findings`
 - `## Notes on Data / Evaluation`
@@ -70,7 +69,7 @@
 
 - `assets/papers/<paper_id>/figures/figure_manifest.json`
 
-如果图像增强未启用、用户拒绝初始化、或后端不可用，则允许保持 `text_only`，但研究笔记正文必须完整。
+如果图像增强未启用、用户拒绝初始化、或后端不可用，则允许保持无图回退模式，但研究笔记正文必须完整。
 
 **判定标准：笔记正文完整即为通过，不因图像缺失而判定失败。**
 

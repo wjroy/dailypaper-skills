@@ -16,8 +16,13 @@ MERGE_DIR = DAILY_PAPERS_DIR / "merge"
 STATE_DIR = DAILY_PAPERS_DIR / "state"
 SHARED_DIR = DAILY_PAPERS_DIR.parent / "_shared"
 RENDER_DIR = DAILY_PAPERS_DIR / "render"
+PAPER_READER_SCRIPT = (
+    DAILY_PAPERS_DIR.parent / "paper-reader" / "scripts" / "run_paper_reader.py"
+)
 TMP_DIR = Path("/tmp")
 PDF_INPUTS_PATH = TMP_DIR / "published_pdf_inputs.json"
+PREPRINT_RICH_PATH = TMP_DIR / "preprint_review_rich_20.json"
+MERGED_PATH = TMP_DIR / "daily_review_merged.json"
 
 for p in (STATE_DIR, SHARED_DIR):
     if str(p) not in sys.path:
@@ -32,6 +37,27 @@ def _run(script_path: Path) -> dict[str, Any]:
     try:
         proc = subprocess.run(
             [sys.executable, str(script_path)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        output = (proc.stdout or "").strip()
+        try:
+            payload: dict[str, Any] = json.loads(output) if output else {}
+        except Exception:
+            payload = {"raw_output": output}
+        payload["returncode"] = proc.returncode
+        if proc.returncode != 0 and proc.stderr:
+            payload["stderr_summary"] = proc.stderr.strip()[:500]
+        return payload
+    except Exception as exc:
+        return {"returncode": -1, "error": str(exc)}
+
+
+def _run_args(command: list[str]) -> dict[str, Any]:
+    try:
+        proc = subprocess.run(
+            command,
             check=False,
             capture_output=True,
             text=True,
@@ -114,6 +140,122 @@ def _load_pdf_candidates_summary() -> list[dict]:
         return []
 
 
+def _load_json(path: Path, default: Any) -> Any:
+    if not path.exists():
+        return default
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return default
+    return payload if isinstance(payload, type(default)) else default
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def _note_link_from_path(note_path: str) -> str:
+    stem = Path(note_path).stem.strip()
+    return f"[[{stem}]]" if stem else ""
+
+
+def _preferred_pdf_path(item: dict[str, Any]) -> str:
+    paths = item.get("local_pdf_paths", []) or []
+    if isinstance(paths, list):
+        for value in paths:
+            text = str(value or "").strip()
+            if text:
+                return text
+    preferred_type = str(item.get("preferred_fulltext_input_type", "")).strip().lower()
+    preferred_value = str(item.get("preferred_fulltext_input_value", "")).strip()
+    if preferred_type == "local_pdf" and preferred_value:
+        return preferred_value
+    return ""
+
+
+def _run_notes_stage(source_path: Path) -> dict[str, Any]:
+    if source_path == MERGED_PATH:
+        payload = _load_json(source_path, {})
+        if not isinstance(payload, dict):
+            return {"status": "skipped", "reason": "notes_source_missing", "items": []}
+        items = payload.get("rich_reviewed_pool", [])
+        container_key = "rich_reviewed_pool"
+    else:
+        payload = _load_json(source_path, [])
+        items = payload
+        container_key = ""
+
+    if not isinstance(items, list):
+        return {"status": "skipped", "reason": "notes_source_invalid", "items": []}
+
+    note_results: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("rich_decision", "")).lower() != "must_read":
+            continue
+
+        record_path = TMP_DIR / f"paper_reader_{item.get('paper_id', 'paper')}.json"
+        _write_json(record_path, item)
+        pdf_path = _preferred_pdf_path(item)
+        command = [sys.executable, str(PAPER_READER_SCRIPT)]
+        if pdf_path:
+            command.append(pdf_path)
+        command.extend(
+            [
+                "--record-json",
+                str(record_path),
+                "--paper-id",
+                str(item.get("paper_id", "")),
+            ]
+        )
+
+        reader = _run_args(command)
+        note_status = "note_pending"
+        if reader.get("returncode") == 0 and reader.get("note_path"):
+            note_link = _note_link_from_path(str(reader.get("note_path", "")))
+            if note_link:
+                item["note_links"] = [note_link]
+            image_mode = str(
+                (reader.get("image") or {}).get("image_mode", "none")
+            ).lower()
+            item["note_status"] = "text_note" if image_mode == "none" else "ready"
+            note_status = str(item.get("note_status"))
+        else:
+            item["note_links"] = []
+            item["note_status"] = "note_pending"
+
+        note_results.append(
+            {
+                "paper_id": item.get("paper_id", ""),
+                "title": item.get("title", ""),
+                "note_status": note_status,
+                "note_links": item.get("note_links", []),
+            }
+        )
+
+    if container_key:
+        payload[container_key] = items
+    else:
+        payload = items
+    _write_json(source_path, payload)
+
+    ready = sum(1 for item in note_results if item["note_status"] == "ready")
+    text_only = sum(1 for item in note_results if item["note_status"] == "text_note")
+    pending = sum(1 for item in note_results if item["note_status"] == "note_pending")
+    return {
+        "status": "ok",
+        "items": note_results,
+        "counts": {
+            "ready": ready,
+            "text_only": text_only,
+            "note_pending": pending,
+        },
+    }
+
+
 def run() -> dict:
     state = load_state()
 
@@ -156,6 +298,11 @@ def run() -> dict:
     # --- Merge whatever is available ---
     merged = _run(MERGE_DIR / "merge_reviewed_papers.py")
 
+    # --- Must-read notes stage (best effort) ---
+    notes = _run_notes_stage(
+        MERGED_PATH if MERGED_PATH.exists() else PREPRINT_RICH_PATH
+    )
+
     # --- Render the best possible recommendation page ---
     if published_needs_pdf:
         # Render interim (preprint-only rich + published lite) as the primary output
@@ -196,6 +343,9 @@ def run() -> dict:
     if isinstance(recommendation, dict) and recommendation.get("returncode") == 0:
         completed_steps.append("recommendation_page")
 
+    if isinstance(notes, dict) and notes.get("status") == "ok":
+        completed_steps.append("must_read_notes")
+
     # Determine overall status
     if not completed_steps:
         status = "failed"
@@ -219,15 +369,22 @@ def run() -> dict:
         }
         save_state(new_state)
 
-    notes: list[str] = []
+    notes_summary: list[str] = []
     if auto_continue and not pdf_inputs_ready:
-        notes.append(
+        notes_summary.append(
             "Published deep review ran without local PDFs; extraction confidence may be lower."
         )
     if published_needs_pdf and preprint_ok:
-        notes.append(
-            "Preprint results are complete. Published papers need local PDFs for deep analysis. "
-            "Rerun after adding PDFs to continue."
+        notes_summary.append(
+            "Published papers without local PDFs are marked as PDF pending. Add the PDFs and rerun daily-papers to continue."
+        )
+    if isinstance(notes, dict) and notes.get("counts"):
+        counts = notes["counts"]
+        notes_summary.append(
+            "Must-read notes: "
+            f"{counts.get('ready', 0)} enhanced, "
+            f"{counts.get('text_only', 0)} text-only, "
+            f"{counts.get('note_pending', 0)} note pending."
         )
 
     result: dict[str, Any] = {
@@ -236,9 +393,10 @@ def run() -> dict:
         "completed_steps": completed_steps,
         "skipped_steps": skipped_steps,
         "failed_steps": failed_steps,
-        "notes": notes,
+        "notes": notes_summary,
         "recommendation_output": recommendation.get("output", ""),
         "recommendation_counts": recommendation.get("counts", {}),
+        "must_read_notes": notes.get("counts", {}),
     }
 
     if pending_pdfs:
@@ -253,6 +411,7 @@ def run() -> dict:
         "preprint": preprint,
         "published_rich": published_rich,
         "merge": merged,
+        "notes": notes,
         "recommendation": recommendation,
     }
 
@@ -261,15 +420,6 @@ def run() -> dict:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--resume-published",
-        action="store_true",
-        help="Resume published rich stage after manual PDF retrieval.",
-    )
-    args = parser.parse_args()
-
-    if args.resume_published:
-        result = _run(STATE_DIR / "resume_published.py")
-    else:
-        result = run()
+    parser.parse_args()
+    result = run()
     print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -1,14 +1,10 @@
 # 图片排错
 
-`paper-reader` 现在采用文本优先、图像增强可选的策略。默认顺序是：
+`paper-reader` 采用文本优先、图像增强非阻断的策略。默认顺序是：
 
 1. 先完成全文文本解析与研究笔记主内容
-2. 如果图像增强已初始化且后端可用，再调用 `skills/paper-reader/scripts/run_figure_pipeline.py`
-3. `run_figure_pipeline.py` 内部按需执行：
-   - `extract_embedded_figures.py`
-   - `render_figure_pages.py`
-   - `build_figure_manifest.py`
-   - `link_figures_to_note.py`
+2. 如果图像增强已初始化且后端可用，再尝试图像提取
+3. 若失败，自动回退，仍保留完整研究笔记
 
 ## 为什么要这样做
 
@@ -27,7 +23,7 @@
 
 ## 常见问题
 
-- 优先尝试 PyMuPDF；只有可用时才用 `pdfimages` / `pdftoppm`
+- 优先尝试 PyMuPDF，再尝试 poppler（`pdfimages` / `pdftoppm`），最后退到页截图或无图模式
 - PDF 里很多是矢量图，embedded extraction 抽不出完整结果时会回退到 full-page render
 - 某些页面会同时包含 caption、表格、结果图，manifest 会优先保留，不轻易丢弃
 - 如果 caption 提取不到，会退回页面文本关键词做角色判断
@@ -36,9 +32,9 @@
 ## 最小检查项
 
 - 文本研究笔记已生成
-- 图像模式：`full` / `page_fallback` / `text_only`
+- 图像模式：`full` / `partial` / `none`
 - 图像增强是否补充成功
-- 若失败，是否已自动降级到文本模式
+- 若失败，是否已自动降级到无图模式
 
 ## Obsidian 落盘规则
 

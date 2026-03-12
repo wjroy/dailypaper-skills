@@ -13,7 +13,8 @@ from typing import Any
 SKILL_DIR = Path(__file__).resolve().parents[1]
 LOCAL_CONFIG_PATH = SKILL_DIR / "paper-reader.local.json"
 EXAMPLE_CONFIG_PATH = SKILL_DIR / "paper-reader.config.example.json"
-STATE_PATH = SKILL_DIR / "paper-reader.state.json"
+STATE_PATH = SKILL_DIR / "image_pipeline_state.json"
+LEGACY_STATE_PATH = SKILL_DIR / "paper-reader.state.json"
 TEMP_ROOT = SKILL_DIR / ".temp-output"
 
 
@@ -34,11 +35,10 @@ DEFAULT_LOCAL_CONFIG = {
 DEFAULT_STATE = {
     "initialized": False,
     "user_opt_in": "unknown",
-    "image_backend": "none",
+    "backend": "none",
     "backend_ready": False,
     "last_check_time": "",
     "last_error": "",
-    "auto_setup_images": False,
 }
 
 
@@ -87,7 +87,11 @@ def load_local_config() -> dict:
 def load_state() -> dict:
     state = copy.deepcopy(DEFAULT_STATE)
     loaded = _read_json(STATE_PATH, {})
+    if not loaded and LEGACY_STATE_PATH.exists():
+        loaded = _read_json(LEGACY_STATE_PATH, {})
     if isinstance(loaded, dict):
+        if "image_backend" in loaded and "backend" not in loaded:
+            loaded["backend"] = loaded.get("image_backend", "none")
         _deep_merge(state, loaded)
     return state
 
@@ -146,6 +150,7 @@ def detect_image_backend() -> dict:
         return {
             "backend": "none",
             "backend_ready": False,
+            "available_backends": [],
             "details": {
                 "pymupdf": {"available": False, "error": "disabled by config"},
                 "poppler": {},
@@ -169,6 +174,11 @@ def detect_image_backend() -> dict:
         "pdftotext": shutil.which("pdftotext") is not None,
     }
     poppler_ready = poppler["pdfimages"] or poppler["pdftoppm"] or poppler["pdftotext"]
+    available_backends: list[str] = []
+    if pymupdf_ready:
+        available_backends.append("pymupdf")
+    if poppler_ready:
+        available_backends.append("poppler")
 
     backend = "none"
     backend_ready = False
@@ -192,6 +202,7 @@ def detect_image_backend() -> dict:
     return {
         "backend": backend,
         "backend_ready": backend_ready,
+        "available_backends": available_backends,
         "details": details,
         "error": error,
     }
@@ -202,7 +213,7 @@ def update_state_from_probe(mark_initialized: bool = False) -> dict:
     probe = detect_image_backend()
     state.update(
         {
-            "image_backend": probe["backend"],
+            "backend": probe["backend"],
             "backend_ready": probe["backend_ready"],
             "last_check_time": utc_now_iso(),
             "last_error": probe["error"],
@@ -221,10 +232,9 @@ def set_user_choice(choice: str) -> dict:
     state = load_state()
     state["user_opt_in"] = normalized
     state["initialized"] = normalized != "unknown"
-    state["auto_setup_images"] = normalized == "yes"
     state["last_check_time"] = utc_now_iso()
     if normalized == "no":
-        state["image_backend"] = "none"
+        state["backend"] = "none"
         state["backend_ready"] = False
         state["last_error"] = ""
     save_state(state)

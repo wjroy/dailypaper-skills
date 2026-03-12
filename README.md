@@ -1,27 +1,14 @@
 # dailypaper-skills
 
-面向 Obsidian 的紧凑论文流水线仓库：发现论文、生成研究笔记、刷新索引。
+面向科研阅读的 3 个公开入口：`daily-papers`、`paper-reader`、`generate-mocs`。
 
-对最终用户，公开入口只有 3 个：`daily-papers`、`paper-reader`、`generate-mocs`。其余抓取、排序、PDF enrich、合并、笔记回填都属于内部实现模块，不单独触发。
+## 公开入口
 
-## 这套东西做什么
+- `daily-papers`：发现论文、排序、生成每日推荐页，并尽可能补充 must_read 笔记
+- `paper-reader`：读取单篇论文，稳定产出研究笔记；图像增强默认尝试，但失败时自动回退为无图模式
+- `generate-mocs`：刷新论文索引与概念索引
 
-- 生成每日论文推荐，输出到 `DailyPapers/`
-- 读取单篇论文或一个 Zotero 分类，先输出统一格式的研究笔记，再按可用性补充轻量图像增强
-- 维护 Obsidian 里的论文目录页和概念目录页
-
-最终产物通常落在你的 Obsidian 库里：
-
-```text
-ObsidianVault/
-├── DailyPapers/YYYY-MM-DD-论文推荐.md
-├── 论文笔记/.../*.md
-└── 论文笔记/_概念/.../*.md
-```
-
-## 最小用法
-
-平时只需要 3 句话：
+## 最常见的用法
 
 ```text
 今日论文推荐
@@ -29,191 +16,95 @@ ObsidianVault/
 更新索引
 ```
 
-其他公开说法只保留这些：
+## daily-papers 的产品语义
 
-```text
-过去3天论文推荐
-过去一周论文推荐
-读一下这篇论文 https://arxiv.org/abs/2509.24527
-快速看一下这篇论文 https://arxiv.org/abs/2509.24527
-批判性分析这篇论文 https://arxiv.org/abs/2509.24527
-读一下 Zotero 里的 Diffusion Policy
-批量读一下 Zotero 里 机器人 这个分类下的论文
-更新索引
-```
+`daily-papers` 是主入口，固定遵循：
 
-## 3 个公开 skill
+发现论文 -> 排序 -> 生成每日推荐页 -> 尽可能生成 must_read 笔记
 
-- `skills/daily-papers`：每日推荐总入口，负责整条推荐流水线
-- `skills/paper-reader`：读取单篇论文，或按同一模板批量读取一个 Zotero 分类；默认先完成文本研究笔记，再按需补充图像增强
-- `skills/generate-mocs`：手动刷新论文目录页和概念目录页
+关键规则：
 
-## 论文推荐的运行方式
+- 每日推荐页必须优先产出，任何单个子流程失败都不能阻断主结果
+- 缺少某篇论文的 PDF 时，推荐页仍然生成，并标记为 `PDF pending`
+- 这时用户只需要补充 PDF 后重新运行 `daily-papers`
+- 单篇笔记失败不会让每日推荐失败；推荐页会标记为 `note pending`
+- 如果笔记成功但图像增强回退，推荐页仍会挂上文本笔记链接
 
-说 `今日论文推荐` 后，系统自动完成以下工作：
+## paper-reader 的产品语义
 
-1. **发现论文**：从已发表期刊和 arXiv 预印本两个方向同时搜索
-2. **筛选排序**：按你的领域偏好打分、去重、排序
-3. **生成推荐页**：输出一份当日推荐 Markdown 到 `DailyPapers/`
-4. **生成笔记**（最佳努力）：对标记为 must_read 的论文调用 paper-reader 生成研究笔记
+`paper-reader` 是稳定的单篇阅读入口，执行流程固定为：
 
-### 如果有些论文缺少本地 PDF
+读取论文 -> 提取文本 -> 尝试图像提取 -> 生成研究笔记
 
-当已发表渠道的候选论文需要完整 PDF 才能做深度评审，但本地尚未导入时：
+图像策略：
 
-- 系统**不会停下来等你**
-- 而是先用已有数据（预印本 + 已有 PDF 的论文）生成**临时推荐页**
-- 同时给你一份**待补 PDF 清单**（论文标题 + DOI）
-- 你把 PDF 补进 Zotero 或本地路径后，**重新说一次** `今日论文推荐` 即可——系统会自动检测到 PDF 已就位并继续完成剩余评审
+- 默认尝试图像增强
+- 图像提取失败时自动回退，不能阻断研究笔记生成
+- 支持三种结果：完整图像模式、部分图像模式、无图回退模式
+- 首次运行时可只询问一次是否启用图像增强初始化；初始化失败也不影响当前阅读
 
-### 笔记生成是最佳努力
+笔记中的 `Figures` 区块会稳定表达三种状态：
 
-- 单篇笔记生成失败不会阻断其他论文的笔记，也不会影响推荐页
-- 失败的论文在推荐页里标注为"笔记待生成"
-- 你随时可以单独用 `读一下这篇论文 ...` 补生成
+- 完整图像模式：方法图和结果图都覆盖
+- 部分图像模式：保留已提取关键图，并标记缺失图像
+- 无图回退模式：写明 `图像覆盖：未提取`，并给出建议关注图
 
-## 配置方式
+## generate-mocs 的产品语义
 
-共享配置仍采用单一路径策略：提交 `user-config.example.json`，本机只改 `user-config.local.json`。
+`generate-mocs` 表示“刷新所有索引”。
 
-共享配置加载顺序：`DEFAULT_CONFIG` -> `skills/_shared/user-config.local.json`
+- 概念索引和论文索引独立刷新
+- 任一部分失败都不阻断另一部分
+- 对外统一结果语义为 `MOCs refreshed`
 
-`skills/_shared/user-config.example.json` 只用于示例，不再被运行时当作真实配置覆盖默认值。
+## 配置
 
-`paper-reader` 自己额外维护：
+共享配置加载顺序固定为：
 
-- `skills/paper-reader/paper-reader.config.example.json`：字段示例
-- `skills/paper-reader/paper-reader.local.json`：本地真实输出路径和图像增强偏好
-- `skills/paper-reader/paper-reader.state.json`：初始化缓存和后端状态
+`DEFAULT_CONFIG`
+-> `skills/_shared/user-config.example.json`
+-> `skills/_shared/user-config.local.json`
 
-如果 `paper-reader.local.json` 不存在，`paper-reader` 会自动进入临时模式，继续完成文本研究笔记。
+规则：
 
-第一次安装后：
+- `DEFAULT_CONFIG` 提供全部安全默认值
+- `user-config.example.json` 既是示例模板，也是程序运行时会读取的基础配置层
+- `user-config.local.json` 是你的本机覆盖层，不提交到 GitHub
+- 任一配置文件缺失都不会阻断三个公开 skill 的主任务
 
-1. 复制 `skills/_shared/user-config.example.json`
+首次安装通常只需要复制：
+
+1. `skills/_shared/user-config.example.json`
 2. 重命名为 `skills/_shared/user-config.local.json`
-3. 只修改你的本机路径和领域配置
+3. 修改你的本机路径和领域偏好
 
-需要先改的通常只有：
+通常最先需要改的是：
 
 - `paths.obsidian_vault`
 - `paths.zotero_db`
 - `paths.zotero_storage`
 - `active_domain`
-- `domain_profiles.<name>.queries`
 
-仓库不会提交你的个人路径；`.gitignore` 已忽略 `skills/_shared/user-config.local.json`。
+## 输出结果
 
-当前主线领域是智能建造 / 岩土监测 / 时序预测 / foundation model，内置 profile 保留：
-
-- `intelligent_construction`
-- `geo_timeseries_fm`
-
-## 单一笔记模板
-
-论文笔记只遵循一个 canonical template：`obsidian-templates/论文笔记模板.md`
-
-- `paper-reader` 按这个模板生成
-- `daily-papers` 的 notes stage 按这个模板做最低质量检查
-- README 展示的也是这个模板
-
-图像章节也统一收在这个模板里：
-
-- `关键图示 (Key Figures)`：面向阅读，优先展示方法/框架图和核心结果图
-- `全部候选图 (All Candidate Figures)`：面向归档；无图时会写简洁占位状态
-
-如果你想改输出结构，只改 `obsidian-templates/论文笔记模板.md`。
-
-## 输出到 Obsidian 的结果
-
-- 推荐页：`{vault}/DailyPapers/YYYY-MM-DD-论文推荐.md`
+- 每日推荐页：`{vault}/DailyPapers/YYYY-MM-DD-论文推荐.md`
 - 论文笔记：`{vault}/论文笔记/.../*.md`
-- 概念笔记：`{vault}/论文笔记/_概念/.../*.md`
-- 论文图片：`{output_root}/assets/papers/<paper_id>/figures/*.png`
-- 图像 manifest：`{output_root}/assets/papers/<paper_id>/figures/figure_manifest.json`
-- 目录页：由 `generate-mocs` 或自动刷新生成
-
-## 安装
-
-前置环境：
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-- [Obsidian](https://obsidian.md/)
-- [Python 3.8+](https://www.python.org/)
-- [Zotero](https://www.zotero.org/)（已发表论文的 PDF 补齐和 Zotero 读取会用到）
-
-可选图像增强：
-
-- 优先推荐 [PyMuPDF](https://pymupdf.readthedocs.io/)
-- `poppler-utils` 仅作为可选增强后端，不再是主流程必需依赖
-
-在仓库根目录运行：
-
-```bash
-mkdir -p ~/.claude/skills
-cp -r ./skills/* ~/.claude/skills/
-cp -r ./obsidian-templates ~/.claude/skills/obsidian-templates
-cp ~/.claude/skills/_shared/user-config.example.json ~/.claude/skills/_shared/user-config.local.json
-```
-
-然后把 `~/.claude/skills/_shared/user-config.local.json` 改成你的本机配置。
-
-如果你想让 `paper-reader` 直接写入自己的 Obsidian 路径，再额外复制：
-
-```bash
-cp ~/.claude/skills/paper-reader/paper-reader.config.example.json ~/.claude/skills/paper-reader/paper-reader.local.json
-```
-
-不复制也可以；此时 `paper-reader` 会进入临时模式，但仍能正常生成文本研究笔记。
-
-直接跑单篇文本优先阅读时，建议使用：
-
-```bash
-python skills/paper-reader/scripts/run_paper_reader.py /path/to/paper.pdf
-```
+- 概念索引：`{vault}/论文笔记/_概念/.../*.md`
 
 ## FAQ
 
-**一句话能让它做什么？**
+**如果 published 论文缺 PDF，会不会卡住？**
 
-可以。最常见就是 `今日论文推荐`、`读一下这篇论文 ...`、`更新索引`。
+不会。`daily-papers` 仍然生成推荐页，并把该论文标记为 `PDF pending`。补充 PDF 后重新运行即可。
 
-**有些论文缺 PDF 怎么办？**
+**如果 paper-reader 的图像能力失败，会不会整篇读不了？**
 
-系统会先用已有数据生成临时推荐页，并给出待补 PDF 清单（标题 + DOI）。补好后重新说 `今日论文推荐`，系统自动检测并继续。
+不会。文本笔记始终优先生成；图像失败只会回退到无图模式。
 
-**笔记生成失败了怎么办？**
+**如果 must_read 笔记没有成功生成怎么办？**
 
-单篇失败不影响其他笔记和推荐页。推荐页里会标注"笔记待生成"，你随时可以用 `读一下这篇论文 ...` 单独补生成。
+推荐页仍然可用，只会把对应论文标记为 `note pending`。
 
-**Zotero 在流程里做什么？**
+**刷新索引时，两个索引要都成功才算完成吗？**
 
-它主要承担已发表论文的 PDF 补齐，以及 `paper-reader` 的条目检索、附件定位、分类批读。
-
-**`paper-reader` 现在会不会因为图像环境没配好而卡住？**
-
-不会。文本研究笔记永远先完成；图像增强只在已初始化且后端可用时自动执行，否则会直接降级到 text-only。
-
-**首次使用图像增强会发生什么？**
-
-首次读论文时，如果状态还是 `unknown`，会只问一次你是否要做图像增强初始化，并明确说明不配置也不会影响本次研究笔记输出。你的选择会缓存到 `skills/paper-reader/paper-reader.state.json`。
-
-**Obsidian 里的图片放哪里？**
-
-已配置时统一落在 `assets/papers/<paper_id>/figures/`；未配置时写入 `skills/paper-reader/.temp-output/assets/papers/<paper_id>/figures/`。笔记里统一用相对 `![[assets/papers/<paper_id>/figures/<filename>.png]]`。
-
-**Obsidian 在流程里做什么？**
-
-它是最终输出仓库：推荐页、论文笔记、概念笔记、MOC 都直接写进去。
-
-**目录页会自动刷新吗？**
-
-默认会；也可以手动说 `更新索引`。
-
-**默认会提交我的个人路径吗？**
-
-不会。示例配置和本地配置已经拆开。
-
-## License
-
-Apache-2.0. See `LICENSE`.
+不需要。两部分独立刷新，对外统一表现为索引刷新动作。

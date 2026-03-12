@@ -29,9 +29,9 @@ def run_pipeline(pdf_path: Path, paper_id: str, note_path: Path | None = None) -
         manifest = {
             "paper_id": paper_id,
             "pdf_path": str(pdf_path),
-            "image_mode": "text_only",
+            "image_mode": "none",
             "figures": [],
-            "recommended_figure_types": ["方法框架图", "模型结构图", "主结果图"],
+            "recommended_figure_types": ["方法框架图", "主结果图"],
             "stats": {
                 "embedded_figures_extracted": 0,
                 "rendered_fallback_pages": 0,
@@ -65,7 +65,7 @@ def run_pipeline(pdf_path: Path, paper_id: str, note_path: Path | None = None) -
         "paper_id": paper_id,
         "pdf_path": str(pdf_path),
         "manifest_path": str(manifest_path),
-        "image_mode": manifest.get("image_mode", "text_only"),
+        "image_mode": manifest.get("image_mode", "none"),
         "embedded_figures_extracted": manifest.get("stats", {}).get(
             "embedded_figures_extracted", 0
         ),

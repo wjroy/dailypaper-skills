@@ -179,10 +179,18 @@ def load_user_config() -> dict:
     config = copy.deepcopy(DEFAULT_CONFIG)
     config_dir = Path(__file__).resolve().parent
 
-    config_path = config_dir / "user-config.local.json"
-    if config_path.exists():
-        with config_path.open("r", encoding="utf-8") as f:
-            loaded = json.load(f)
+    config_paths = [
+        config_dir / "user-config.example.json",
+        config_dir / "user-config.local.json",
+    ]
+    for config_path in config_paths:
+        if not config_path.exists():
+            continue
+        try:
+            with config_path.open("r", encoding="utf-8") as f:
+                loaded = json.load(f)
+        except Exception:
+            continue
         if isinstance(loaded, dict):
             _deep_merge(config, loaded)
 

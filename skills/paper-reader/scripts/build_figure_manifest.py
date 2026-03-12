@@ -23,10 +23,14 @@ from _figure_common import (
 )
 
 
-def enrich_record(record: dict, pages: list[str], figures_dir: Path, sequence: int) -> dict:
+def enrich_record(
+    record: dict, pages: list[str], figures_dir: Path, sequence: int
+) -> dict:
     page_number = int(record.get("page_number", 0) or 0)
     page_text = pages[page_number - 1] if 0 < page_number <= len(pages) else ""
-    caption_snippet = record.get("caption_snippet", "") or extract_caption_snippet(page_text)
+    caption_snippet = record.get("caption_snippet", "") or extract_caption_snippet(
+        page_text
+    )
     role = record.get("estimated_role", "unknown")
     if not role or role == "unknown":
         role = estimate_role(caption_snippet, page_text, record.get("filename", ""))
@@ -44,7 +48,9 @@ def enrich_record(record: dict, pages: list[str], figures_dir: Path, sequence: i
         if source_type == "embedded":
             new_filename = f"fig_{role_slug}_p{page_number:02d}_{sequence:02d}.png"
         else:
-            new_filename = f"fig_{role_slug}_fullpage_p{page_number:02d}_{sequence:02d}.png"
+            new_filename = (
+                f"fig_{role_slug}_fullpage_p{page_number:02d}_{sequence:02d}.png"
+            )
         new_path = figures_dir / new_filename
         if new_path != figure_path:
             figure_path.replace(new_path)
@@ -68,15 +74,19 @@ def enrich_record(record: dict, pages: list[str], figures_dir: Path, sequence: i
 
 
 def _recommended_figure_types() -> list[str]:
-    return ["方法框架图", "模型结构图", "主结果图"]
+    return ["方法框架图", "主结果图"]
 
 
 def _image_mode(records: list[dict], rendered_count: int) -> str:
     if not records:
-        return "text_only"
-    if rendered_count:
-        return "page_fallback"
-    return "full"
+        return "none"
+    has_method = any(
+        item.get("estimated_role") in {"framework", "method"} for item in records
+    )
+    has_result = any(item.get("estimated_role") == "result" for item in records)
+    if has_method and has_result:
+        return "full"
+    return "partial"
 
 
 def build_manifest(pdf_path: Path, paper_id: str) -> dict:
@@ -86,12 +96,16 @@ def build_manifest(pdf_path: Path, paper_id: str) -> dict:
     pages = pdftotext_pages(pdf_path)
 
     all_records = []
-    for index, record in enumerate(list(embedded.get("records", [])) + list(rendered.get("records", [])), start=1):
+    for index, record in enumerate(
+        list(embedded.get("records", [])) + list(rendered.get("records", [])), start=1
+    ):
         enriched = enrich_record(record, pages, figures_dir, index)
         if enriched["filename"]:
             all_records.append(enriched)
 
-    method_framework_count = sum(1 for item in all_records if item["estimated_role"] in {"framework", "method"})
+    method_framework_count = sum(
+        1 for item in all_records if item["estimated_role"] in {"framework", "method"}
+    )
     result_count = sum(1 for item in all_records if item["estimated_role"] == "result")
     rendered_count = len(rendered.get("records", []))
     manifest = {
@@ -110,7 +124,8 @@ def build_manifest(pdf_path: Path, paper_id: str) -> dict:
             "figure_like_pages": len(rendered.get("figure_like_pages", [])),
         },
         "fallback": {
-            "triggered": bool(rendered.get("fallback_triggered", False)),
+            "triggered": bool(rendered.get("fallback_triggered", False))
+            or _image_mode(all_records, rendered_count) != "full",
             "reasons": list(rendered.get("fallback_reasons", [])),
         },
         "backends": {
@@ -136,7 +151,9 @@ def main() -> None:
     pdf_path = Path(args.pdf_path).expanduser().resolve()
     paper_id = paper_id_from_inputs(args.paper_id, pdf_path)
     manifest = build_manifest(pdf_path, paper_id)
-    print(f"figure manifest saved to: {manifest_path_for_paper(paper_id)} ({manifest['image_mode']})")
+    print(
+        f"figure manifest saved to: {manifest_path_for_paper(paper_id)} ({manifest['image_mode']})"
+    )
 
 
 if __name__ == "__main__":

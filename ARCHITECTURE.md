@@ -1,232 +1,130 @@
 # Architecture
 
-> **本文件面向开发者和维护者。** 最终用户只需要 README 中的三句话入口。
+> 本文件面向维护者。最终用户只应感知 3 个公开入口：`daily-papers`、`paper-reader`、`generate-mocs`。
 
-## 设计原则
+## Product Contract
 
-### 内部节点 ≠ 用户可执行步骤
+仓库对外统一为 3 个稳定科研工具，而不是内部流水线节点：
 
-本仓库的流水线拆分为多个内部节点（adapter、ranker、enrich、merge、render 等），但这些节点**仅供编排器内部调用**，不是最终用户可以或需要单独触发的命令。公开入口只有 3 个 skill。
+- `daily-papers`：每日论文发现与推荐
+- `paper-reader`：单篇论文阅读与研究笔记生成
+- `generate-mocs`：索引刷新
 
-用户看到的是：
+维护规则：
 
-- "今日论文推荐" → 一次性完成整条推荐流水线
-- "读一下这篇论文 ..." → 生成单篇研究笔记
-- "更新索引" → 刷新目录页
+- 公开输出不暴露 checkpoint、resume 脚本、tmp 文件、状态文件、内部脚本名、图像流水线阶段名
+- 所有入口以“主任务永不阻断”为优先原则
+- 文档、配置和运行时语义必须保持一致
 
-用户**不应该**看到或需要运行：adapter 名、ranker 名、enrich 名、merge 脚本名、resume 脚本名、state JSON 路径、/tmp 中间文件路径。
+## Unified Config Model
 
-### 优雅降级优先
+共享配置只保留 3 层，顺序固定：
 
-所有公开入口在遇到部分失败时，优先保留已有成果并继续，而不是整体中止：
+1. `skills/_shared/user_config.py` 中的 `DEFAULT_CONFIG`
+2. `skills/_shared/user-config.example.json`
+3. `skills/_shared/user-config.local.json`
 
-| 场景 | 行为 |
-|------|------|
-| 已发表渠道缺 PDF | 先用预印本数据生成临时推荐，输出待补清单 |
-| 单篇笔记生成失败 | 标记"笔记待生成"，继续其他论文 |
-| 单个 enrich/rank/export 节点失败 | 保留其余结果，降级输出 |
-| 某个数据源完全不可用 | 用另一个数据源继续 |
-| 概念 MOC 生成失败 | 论文 MOC 继续，反之亦然 |
-| 配置文件缺失 | 使用安全默认值 + 降级提示 |
+约束：
 
-## Public Entrypoints
-
-仓库对外只有 3 个入口：
-
-- `skills/daily-papers`
-- `skills/paper-reader`
-- `skills/generate-mocs`
-
-`skills/_shared` 只放共享配置和脚本，不是可触发 skill。
-
-## Overall Flow
-
-```text
-daily-papers
-  ├─ published channel
-  │   ├─ multi-source metadata fetch
-  │   ├─ scoring + ranking
-  │   ├─ export candidate bundle
-  │   └─ PDF availability check (graceful: continue without if missing)
-  │
-  ├─ preprint channel
-  │   ├─ arXiv fetch
-  │   └─ preprint enrichment
-  │
-  ├─ merge
-  │   └─ combine results from both channels
-  │
-  ├─ render
-  │   └─ generate recommendation page
-  │
-  ├─ notes generation (best-effort)
-  │   ├─ invoke paper-reader on must-read papers
-  │   ├─ single failure does not block others
-  │   └─ backfill note links into recommendation file
-  │
-  └─ index refresh
-      └─ invoke shared MOC generators when enabled
-
-paper-reader
-  ├─ input: arXiv / local PDF / Zotero single item / Zotero collection / structured payload
-  ├─ text-first note generation
-  ├─ optional image enhancement (graceful: degrades to text-only)
-  ├─ zotero lookup
-  └─ output: note that follows obsidian-templates/论文笔记模板.md
-
-generate-mocs
-  ├─ concept MOC refresh (independent)
-  └─ paper MOC refresh (independent)
-```
+- `DEFAULT_CONFIG` 提供所有字段默认值，保证零配置可运行
+- `user-config.example.json` 是已提交的基础配置层，运行时必须读取
+- `user-config.local.json` 是用户本机覆盖层，不提交
+- example 或 local 缺失都不应阻断公开 skill
+- 旧的 `user-config.json` 已废弃，不再进入加载链
 
 ## daily-papers
 
-主入口：`skills/daily-papers/orchestration/run_daily_pipeline.py`
+公开语义：
 
-职责：
+发现论文 -> 排序 -> 生成每日推荐页 -> 尽可能生成 must_read 笔记
 
-- 并行运行 Published channel 和 Preprint channel
-- 当 Published PDF 不可用时生成临时推荐（而非阻塞等待）
-- 当用户重新运行且 PDF 已就位时自动恢复并完成剩余评审
-- 合并两路 rich review 结果
-- 渲染推荐页
-- 驱动 notes generation（最佳努力，单篇失败不阻断整体）
+实现约束：
 
-### Published Channel
+- Published 与 Preprint 两个来源独立运行
+- 单个来源失败不阻断推荐页渲染
+- Published 缺 PDF 时不暂停主流程，推荐页照常产出，并将对应论文标记为 `PDF pending`
+- 用户只需补充 PDF 后重新运行 `daily-papers`
+- must_read 笔记阶段为 best-effort，单篇失败只标记 `note pending`
+- `paper-reader` 的异常、超时、图像失败都不得传播为 `daily-papers` 整体失败
 
-核心文件：
+内部主文件：
 
+- `skills/daily-papers/orchestration/run_daily_pipeline.py`
 - `skills/daily-papers/orchestration/run_published_channel.py`
-- `skills/daily-papers/adapters/paper_fetcher_adapter.py`
-- `skills/daily-papers/ranking/metadata_ranker.py`
-- `skills/daily-papers/ranking/domain_ranker.py`
-- `skills/daily-papers/export/export_zotero_bundle.py`
-
-### PDF Availability & Auto-Resume
-
-核心文件：
-
-- `skills/daily-papers/state/pipeline_state.py` — 流水线状态持久化
-- `skills/daily-papers/state/resume_published.py` — 内部恢复逻辑（由编排器自动调用，不面向用户）
-
-行为：
-
-1. Published channel 完成初筛后检查候选论文是否有本地 PDF
-2. 如果 PDF 缺失：保存状态 → 继续用已有数据生成临时推荐 → 输出待补清单
-3. 用户补好 PDF 后重新运行 `今日论文推荐`：编排器自动检测状态并恢复
-
-> **注意**：`resume_published.py` 是内部实现，不应出现在任何面向用户的提示中。
-
-### Preprint Channel
-
-核心文件：
-
+- `skills/daily-papers/orchestration/run_published_rich_channel.py`
 - `skills/daily-papers/orchestration/run_preprint_channel.py`
-- `skills/daily-papers/adapters/arxiv_adapter.py`
-- `skills/daily-papers/enrich/preprint_enrich_arxiv.py`
-
-### Merge & Render
-
-核心文件：
-
 - `skills/daily-papers/merge/merge_reviewed_papers.py`
 - `skills/daily-papers/render/render_daily_recommendation.py`
 
-主要输出：
-
-- `DailyPapers/YYYY-MM-DD-论文推荐.md`
-
-### Notes Generation
-
-核心资源：
-
-- `skills/daily-papers/references/notes-stage-guide.md`
-- `obsidian-templates/论文笔记模板.md`
-
-规则：
-
-- 只给 `must_read` 论文生成笔记
-- 笔记由 `paper-reader` 子进程生成，隔离运行
-- 单篇 paper-reader 失败不阻断其他笔记，也不阻断推荐页
-- 失败的论文在推荐页标注为"笔记待生成"
-- 生成完成后回填推荐页中的笔记链接
-
-### 中间文件
-
-流水线在运行过程中会在临时目录生成若干中间 JSON 文件（原始候选列表、筛选结果、PDF 候选清单、预印本 enrichment 结果、合并结果等）。这些文件是内部实现细节，路径和文件名可能随版本变化，不应在面向用户的输出中引用。
+内部状态与中间文件允许存在，但只能留在开发层，不进入用户话术。
 
 ## paper-reader
 
-`paper-reader` 负责把单篇论文或一个 Zotero 分类收敛成统一格式的研究笔记。
+公开语义：
 
-输入路由：
+读取论文 -> 提取文本 -> 尝试图像提取 -> 生成研究笔记
 
-- arXiv URL
-- 本地 PDF
-- Zotero 单条目
-- Zotero 分类批量读取
-- 结构化 payload
+图像增强规则：
 
-笔记契约：
+- 图像增强默认尝试，但不是写笔记前置条件
+- 图像失败时必须自动回退，仍生成完整研究笔记
+- 三种输出模式：
+  - `full`：方法图和结果图都覆盖
+  - `partial`：只覆盖部分关键图，并标记缺失图像
+  - `none`：无图回退模式，写明 `图像覆盖：未提取`
 
-- canonical template: `obsidian-templates/论文笔记模板.md`
-- orchestrator: `skills/paper-reader/scripts/run_paper_reader.py`
-- text-first note generation: always runs before any image work
-- embedded extraction: `skills/paper-reader/scripts/extract_embedded_figures.py`
-- rendered fallback: `skills/paper-reader/scripts/render_figure_pages.py`
-- manifest build: `skills/paper-reader/scripts/build_figure_manifest.py`
-- note linking: `skills/paper-reader/scripts/link_figures_to_note.py`
-- image init/state manager: `skills/paper-reader/scripts/manage_image_enhancement.py`
-- zotero lookup: `skills/paper-reader/assets/zotero_helper.py`
-- quality rules: `skills/paper-reader/references/quality-standards.md`
+图像依赖顺序：
 
-图像策略：
+1. PyMuPDF
+2. poppler（`pdfimages` / `pdftoppm`）
+3. 页截图
+4. 无图回退
 
-- figure extraction 是增强阶段，不是写笔记前置条件
-- 先做文本阅读和研究笔记，再根据状态自动补充图像增强
-- 优先 PyMuPDF；可选回退到 poppler 命令行工具
-- 结果统一落到 `assets/papers/<paper_id>/figures/`
-- 笔记只通过 manifest 写入 `关键图示 (Key Figures)` 和 `全部候选图 (All Candidate Figures)`
-- 图像增强失败时自动降级到 `text_only`
+依赖缺失规则：
 
-### paper-reader 隔离规则
+- 任一依赖缺失都不能阻断文本阅读
+- 初始化失败不能阻断当前任务
+- 首次运行只允许询问一次是否启用图像增强初始化
+- 初始化状态缓存到内部状态文件 `skills/paper-reader/image_pipeline_state.json`
 
-当 `daily-papers` 调用 `paper-reader` 生成笔记时：
+内部主文件：
 
-- paper-reader 的任何失败（包括图像增强失败）不传播到 daily-papers 主流程
-- daily-papers 不依赖 paper-reader 的内部状态文件
-- 超时和异常由 daily-papers 编排器捕获并降级处理
+- `skills/paper-reader/scripts/run_paper_reader.py`
+- `skills/paper-reader/scripts/run_figure_pipeline.py`
+- `skills/paper-reader/scripts/manage_image_enhancement.py`
+
+## daily-papers 与 paper-reader 边界
+
+- `daily-papers` 只把 `paper-reader` 视为可降级的公开阅读能力
+- `paper-reader` 成功：推荐页回填笔记链接
+- `paper-reader` 回退到无图：推荐页仍视为文本笔记成功
+- `paper-reader` 完全失败：推荐页标记 `note pending`
 
 ## generate-mocs
 
-`generate-mocs` 做目录页刷新，包含两个独立子任务：
+公开语义：刷新所有索引。
 
-- `skills/_shared/generate_concept_mocs.py` — 概念目录页
-- `skills/_shared/generate_paper_mocs.py` — 论文目录页
+内部行为是分别刷新概念索引与论文索引，但对外不暴露内部脚本名。
 
-两个子任务独立运行：一个失败不阻断另一个。返回结构化结果，包含成功/失败/跳过的目录信息。
+实现约束：
 
-## Config Loading
+- 概念索引失败不阻断论文索引
+- 论文索引失败不阻断概念索引
+- 对外统一结果消息：`MOCs refreshed`
 
-共享配置加载顺序固定为：
+公开编排入口：
 
-1. `skills/_shared/user_config.py` 里的 `DEFAULT_CONFIG`
-2. `skills/_shared/user-config.local.json`
+- `skills/generate-mocs/scripts/run_generate_mocs.py`
 
-`skills/_shared/user-config.example.json` 只作示例说明。
+## User-Facing Output Rules
 
-`paper-reader` 额外维护：
+禁止进入用户输出的内容：
 
-- `skills/paper-reader/paper-reader.config.example.json`
-- `skills/paper-reader/paper-reader.local.json`
-- `skills/paper-reader/paper-reader.state.json`
+- checkpoint 名称
+- resume 机制
+- tmp 文件路径
+- 状态文件路径
+- 内部脚本名
+- 图像流水线阶段名
 
-如果没有 `paper-reader.local.json`，运行时进入临时模式，不阻断文本阅读。
-
-配置缺失时的降级策略：所有配置字段都有 `DEFAULT_CONFIG` 中的安全默认值。如果 `user-config.local.json` 不存在，系统使用全部默认值运行并在输出中提示。
-
-## Internal Modules
-
-内部模块保留在 `skills/daily-papers` 的 `adapters/`、`enrich/`、`ranking/`、`merge/`、`render/`、`state/`、`templates/`、`references/` 下。
-
-这些模块服务公开入口，但不面向最终用户单独触发。维护者修改这些模块时，需确保编排器的对外行为契约（推荐页始终产出、笔记最佳努力、降级而非阻断）不被破坏。
+这些内容只允许存在于开发文档、内部日志和维护排障流程中。
